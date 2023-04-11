@@ -140,6 +140,7 @@ fn main() {
                     println!("No passwords found under that place name.");
                 }
             },
+            // Passwords with this method have newline at the end. FIX
             "add" => {
                 let place = cli::read_required("p", "\nEnter the place name, url or ID for the password:", &args);
                 let password = cli::ask("\nEnter the password:");
@@ -174,11 +175,11 @@ fn main() {
                         panic!("Keys don't match.");
                     }
                 }
-                let mut backup_file = File::create(env::current_dir().unwrap().display().to_string() + "password_backup.txt").unwrap();
+                let mut backup_file = File::create(env::current_dir().unwrap().display().to_string() + "/password_backup.txt").unwrap();
                 backup_file.write_all(file_str.as_bytes()).unwrap();
             },
             "restore" => {
-                let backup_file_loc = env::current_dir().unwrap().display().to_string() + &cli::read_required("f", "Backup file location:", &args);
+                let backup_file_loc = env::current_dir().unwrap().display().to_string() + "/" + &cli::read_required("f", "Backup file location:", &args);
                 let mut backup_file = File::open(&backup_file_loc).unwrap();
                 let mut contents = String::new();
                 
