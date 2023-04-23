@@ -50,8 +50,8 @@ Commands:
     generate       Generate a password. Doesn't have to be saved.
     backup         Create a backup of the saved passwords to a file. The contents of the file can be not encrypted with --no-encrypt.
     restore        Load a backup and save all the passwords in the backup file. The passwords can be saved without encryption with --no-encrypt.
-    delete         Delete a password with a specified place. If multiple are found, it will propt to specify the one to be eliminated.
-    add            Add a coustom password to save that isn't generated.
+    delete         Delete a password with a specified place. If multiple are found, it will prompt to specify the one to be eliminated.
+    add            Add a custom password to save that isn't generated.
 
 Arguments:
     --save         Save the generated password. The password will be encrypted.
@@ -67,7 +67,7 @@ Arguments:
     -u (username)  Username for the saved password.
     -p (place)     Place name, url or ID for the usage of the password.
     -l (length)    Length of the generated password. Defaults to 6 characters.
-    -f (file)      Specify the file use to restore the backupped passwords.
+    -f (file)      Specify the file use to restore the backuped passwords.
 
 If you want to delete all the passwords, you can delete the file data.sqlite in the folder ~/.password-manager/.");
         }
