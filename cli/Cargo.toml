@@ -1,13 +1,8 @@
 [package]
-name = "password-manager"
-version = "0.2.0"
+name = "cli"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8.5"
-sqlite = "0.30.4"
-magic-crypt = "3.1.12"
-rpassword = "7.2"
-cli = { path = "cli" }

@@ -63,7 +63,7 @@ Arguments:
     -u (username)  Username for the saved password.
     -p (place)     Place name, url or ID for the usage of the password.
     -l (length)    Length of the generated password. Defaults to 6 characters.
-    -f (file)      Specify the file use to restore the backuped passwords.
+    -f (file)      Specify the file use to restore the backupped passwords.
     
 If you want to delete all the passwords, you can delete the file data.sqlite in the folder ~/.password-manager/.";
 }
