@@ -42,7 +42,7 @@ fn main() {
             println!("Access key already exists. Cannot replace.");
         }
         else {
-            let new_key = rpassword::prompt_password("Plase input an access key. This will be used to encrypt and decrypt passwords: ").unwrap().trim().to_string();
+            let new_key = rpassword::prompt_password("Please input an access key. This will be used to encrypt and decrypt passwords: ").unwrap().trim().to_string();
 
             if new_key.is_empty() {
                 println!("Not a valid key.");

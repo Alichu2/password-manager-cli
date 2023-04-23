@@ -35,7 +35,7 @@ pub mod cli {
             let mut val: String = self.get_param(flag);
             if val.is_empty() {
                 val = self.ask(description);
-                if val.is_empty() {
+                if val.trim().is_empty() {
                     println!("Please try again by actually entering a value.");
                     std::process::exit(2);
                 }
