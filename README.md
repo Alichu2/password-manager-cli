@@ -2,16 +2,8 @@
 A password manager that generates, encrypts, saves and creates backups of passwords all from the terminal.
 
 ## Installation
-### Download (recommended)
-Navigate to the releases tab and download the file corresponding to your system. Unzip the contents.
-
-### Build from source
-Download the source code and run:
-```commandline
-cargo build --release
-```
-
-This will output a binary in ```target/release/``` called password-manager. The binary can be used in the terminal.
+### Download
+Navigate to releases and download the file corresponding to your system. Unzip the contents.
 
 ## Usage
 ### Generating and Saving
