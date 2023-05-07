@@ -220,6 +220,7 @@ fn main() {
                 println!("New passwords added.");
             },
             "locate" => {
+                // Debugging purposes only. Please remove.
                 println!("{}", env::current_dir().unwrap().display());
             },
             _ => { println!("Please give valid command (use --help for more info)."); }
