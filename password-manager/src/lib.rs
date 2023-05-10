@@ -7,7 +7,20 @@ mod password_manager {
     use sqlite;
     use std::process::exit;
     use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-    use super::Password;
+    use super::password_interface::Password;
+
+    trait GetDefault {
+        fn get_or_default(&self, key: &str, default: String) -> String;
+    }
+
+    impl GetDefault for HashMap<&str, String> {
+        fn get_or_default(&self, key: &str, default: String) -> String {
+            match self.get(key) {
+                Some(result) => result.clone(),
+                None => default
+            }
+        }
+    }
 
     pub struct PasswordManager {
         sample_str_ref: &'static str,
@@ -138,17 +151,22 @@ mod password_manager {
             self.execute_sql("")
         }
 
-        pub fn get_password(&self, search_query: &str) -> Result<Vec<Password>, ()> {
+        pub fn get_passwords(&self, search_query: &str) -> Result<Vec<Password>, ()> {
             match self.read_sql_data::<'static>(vec!["password", "username", "place", "id", "is_encrypted"], search_query) {
                 Ok(val) => {
                     let mut unpacked_passwords = Vec::new();
-                    for unpacked_password in val.iter() {
-                        Password {
-                            password: match unpacked_password.get("password") {
-                                
-                            }
-                        }
+
+                    for packed_password in val.iter() {
+                        unpacked_passwords.push(Password {
+                            password: packed_password.get_or_default("password", String::from("none")),
+                            place: packed_password.get_or_default("place", String::from("none")),
+                            username: packed_password.get_or_default("username", String::from("none")),
+                            id: packed_password.get_or_default("id", String::from("0")).parse::<usize>().expect("Error parsing password."),
+                            encrypted: packed_password.get_or_default("encrypted", String::from("1")) == String::from("1"),
+                        })
                     }
+
+                    Ok(unpacked_passwords)
                 },
                 Err(_) => Err(())
             }
@@ -209,23 +227,52 @@ CREATE TABLE config (name TEXT, value TEXT);") {
 }
 
 pub mod password_interface {
+    use super::password_manager::PasswordManager;
+    use std::process::exit;
+
     pub struct Password {
-        password: String,
-        username: String,
-        place: String,
-        encrypted: bool,
-        id: usize,
+        pub password: String,
+        pub username: String,
+        pub place: String,
+        pub encrypted: bool,
+        pub id: usize,
     }
 
-    pub struct PasswordManagerInterface {}
+    pub struct PasswordManagerInterface {
+        pw_core: PasswordManager,
+    }
 
     impl PasswordManagerInterface {
         pub fn new() -> Self {
-            Self {}
+            Self {
+                pw_core: PasswordManager::new(),
+            }
+        }
+
+        fn print_passwords(&self, passwords: Vec<Password>) {
+            let mut got_temp_key = false;
+            let mut key = String::new();
+
+            for password in passwords.iter() {
+                if password.encrypted && !got_temp_key {
+                    break;
+                }
+                if password.encrypted {
+                    self.pw_core.decrypt(&password.password, &key);
+                }
+            }
         }
 
         pub fn load_password(&self, place: &str) {
+            let result = self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + place + "%';"));
 
+            match result {
+                Ok(val) => {},
+                Err(_) => {
+                    println!("An error occurred when loading your passwords. Please try again or report an issue.");
+                    exit(1);
+                }
+            }
         }
     }
 }
