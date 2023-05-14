@@ -61,7 +61,7 @@ mod password_manager {
             self.get_save_file_path().display().to_string()
         }
 
-        fn save_file_exists(&self) -> bool {
+        pub fn save_file_exists(&self) -> bool {
             self.get_save_file_path().exists()
         }
 
@@ -69,7 +69,7 @@ mod password_manager {
             match sqlite::open(&self.get_save_file_path_str()) {
                 Ok(connection) => connection,
                 Err(_) => {
-                    println!("An error occurred when trying to open the save file.");
+                    println!("An error occurred when trying to open the save file. This might be due to the fact that the file is not generated. Generate it with `password-manager create`");
                     exit(1);
                 }
             }
@@ -109,7 +109,7 @@ mod password_manager {
             result
         }
 
-        pub fn generate(length: usize, include_uppercase: bool, include_digits: bool, include_special: bool) -> String {
+        pub fn generate(&self, length: usize, include_uppercase: bool, include_digits: bool, include_special: bool) -> String {
             let mut generated_password = String::new();
 
             let lowercase_chars = "abcdefghijklmnopqrstuvwxyz";
@@ -185,7 +185,7 @@ CREATE TABLE config (name TEXT, value TEXT);") {
             }
         }
 
-        pub fn verify_key(&self, key: String) -> bool {
+        pub fn verify_key(&self, key: &str) -> bool {
             match self.read_sql_data::<'static>(vec!["value"], "SELECT * FROM config WHERE name = 'verification_str';") {
                 Ok(result) => {
                     let value = match result[0].get("value") {
@@ -238,6 +238,12 @@ pub mod password_interface {
         pub id: usize,
     }
 
+    pub enum PasswordDeletionStatus {
+        Ok,
+        Err,
+        Multiple
+    }
+
     pub struct PasswordManagerInterface {
         pw_core: PasswordManager,
     }
@@ -249,17 +255,40 @@ pub mod password_interface {
             }
         }
 
+        fn get_key_if_required(&self, passwords: &Vec<Password>) -> Option<String> {
+            for password in passwords.iter() {
+                if password.encrypted {
+                    return Some(String::from("temp_key"));
+                }
+            }
+            None
+        }
+
         fn print_passwords(&self, passwords: Vec<Password>) {
-            let mut got_temp_key = false;
-            let mut key = String::new();
+            let key = match self.get_key_if_required(&passwords) {
+                Some(key) => key,
+                None => String::new()
+            };
+            let mut password_count: usize = 0;
 
             for password in passwords.iter() {
-                if password.encrypted && !got_temp_key {
-                    break;
-                }
+                println!("{}:", password_count);
+                println!("  place = {}", &password.place);
+                println!("  username = {}", &password.username);
                 if password.encrypted {
-                    self.pw_core.decrypt(&password.password, &key);
+                    println!("  password = {}", match self.pw_core.decrypt(&key, &password.password) {
+                        Ok(val) => val,
+                        Err(_) => {
+                            println!("Problem decrypting your password. Try again or report an issue.");
+                            exit(1);
+                        }
+                    });
                 }
+                else {
+                    println!("  password = {}", &password.password);
+                }
+
+                password_count += 1;
             }
         }
 
@@ -267,11 +296,84 @@ pub mod password_interface {
             let result = self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + place + "%';"));
 
             match result {
-                Ok(val) => {},
+                Ok(val) => {
+                    self.print_passwords(val);
+                },
                 Err(_) => {
                     println!("An error occurred when loading your passwords. Please try again or report an issue.");
                     exit(1);
                 }
+            }
+        }
+
+        pub fn create_save_file(&self, new_key: &str) {
+            if !self.pw_core.save_file_exists() {
+                match self.pw_core.create_save_file() {
+                    Ok(_) => (),
+                    Err(_) => {
+                        println!("Error creating save file.");
+                        exit(1);
+                    }
+                }
+                self.pw_core.save_new_key(new_key.to_string());
+            }
+            else {
+                println!("Save file and key already exists. Cannot regenerate.");
+            }
+        }
+
+        pub fn generate_password(&self, save: bool, special_char: bool, upper_case: bool, digits: bool, length: usize, uname: String, place: String, encrypt: bool, key: String) {
+            let generated_password = self.pw_core.generate(length, upper_case, digits, special_char);
+
+            if save {
+                let saving_password: String;
+
+                if encrypt {
+                    saving_password = self.pw_core.encrypt(&generated_password, &key);
+                }
+                else {
+                    saving_password = generated_password.to_string();
+                }
+
+                match self.pw_core.save_password(&saving_password, &uname, &place, encrypt) {
+                    Ok(_) => (),
+                    Err(_) => {
+                        println!("Error occurred while saving password.");
+                        exit(1);
+                    }
+                }
+                println!("saved password:\n  password = {}\n  username = {}\n  place = {}", generated_password, uname, place);
+            }
+            else {
+                println!("Generated password = {}", generated_password);
+            }
+        }
+
+        pub fn delete_password(&self, place: String, using_id: bool, id: String) -> PasswordDeletionStatus {
+            if using_id {
+
+            }
+            let passwords = match self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + &place + "%';")) {
+                Ok(val) => val,
+                Err(_) => {
+                    println!("Error deleting password.");
+                    exit(1);
+                }
+            };
+
+            if passwords.len() > 1 {
+                self.print_passwords(passwords);
+                PasswordDeletionStatus::Multiple
+            }
+            else {
+                match self.pw_core.delete_password(passwords[0].id.to_string().as_str()) {
+                    Ok(_) => (),
+                    Err(_) => {
+                        println!("Error deleting password.");
+                        exit(1);
+                    }
+                };
+                PasswordDeletionStatus::Ok
             }
         }
     }
