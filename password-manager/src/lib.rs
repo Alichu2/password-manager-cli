@@ -137,7 +137,7 @@ mod password_manager {
         pub fn save_new_key(&self, key: String) {
             let encrypted_sample_str = self.encrypt(self.sample_str_ref, &key);
 
-            match self.execute_sql("") {
+            match self.execute_sql(&("INSERT INTO config (name, value) VALUES ('verification_str', '".to_string() + &encrypted_sample_str + "');")) {
                 Ok(_) => println!("Key saved."),
                 Err(_) => println!("An issue occurred while trying to save your key.")
             } // Needs sql command added to write encrypted value
@@ -148,7 +148,7 @@ mod password_manager {
         }
 
         pub fn delete_password(&self, id: &str) -> Result<(), ()> {
-            self.execute_sql("")
+            self.execute_sql(&("DELETE FROM passwords WHERE id = ".to_string() + id + ";"))
         }
 
         pub fn get_passwords(&self, search_query: &str) -> Result<Vec<Password>, ()> {
@@ -238,12 +238,6 @@ pub mod password_interface {
         pub id: usize,
     }
 
-    pub enum PasswordDeletionStatus {
-        Ok,
-        Err,
-        Multiple
-    }
-
     pub struct PasswordManagerInterface {
         pw_core: PasswordManager,
     }
@@ -329,7 +323,13 @@ pub mod password_interface {
                 let saving_password: String;
 
                 if encrypt {
-                    saving_password = self.pw_core.encrypt(&generated_password, &key);
+                    if self.pw_core.verify_key(&key) {
+                        saving_password = self.pw_core.encrypt(&generated_password, &key);
+                    }
+                    else {
+                        println!("Incorrect key, try again.");
+                        exit(1);
+                    }
                 }
                 else {
                     saving_password = generated_password.to_string();
@@ -349,31 +349,39 @@ pub mod password_interface {
             }
         }
 
-        pub fn delete_password(&self, place: String, using_id: bool, id: String) -> PasswordDeletionStatus {
-            if using_id {
-
-            }
-            let passwords = match self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + &place + "%';")) {
-                Ok(val) => val,
-                Err(_) => {
-                    println!("Error deleting password.");
-                    exit(1);
-                }
-            };
-
-            if passwords.len() > 1 {
-                self.print_passwords(passwords);
-                PasswordDeletionStatus::Multiple
-            }
-            else {
-                match self.pw_core.delete_password(passwords[0].id.to_string().as_str()) {
-                    Ok(_) => (),
+        pub fn delete_password(&self, place: String, using_id: bool, id: String) -> bool {
+            if !using_id {
+                 let passwords = match self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + &place + "%';")) {
+                    Ok(val) => val,
                     Err(_) => {
                         println!("Error deleting password.");
                         exit(1);
                     }
                 };
-                PasswordDeletionStatus::Ok
+
+                if passwords.len() > 1 {
+                    self.print_passwords(passwords);
+                    return false;
+                }
+                else {
+                    match self.pw_core.delete_password(passwords[0].id.to_string().as_str()) {
+                        Ok(_) => true,
+                        Err(_) => {
+                            println!("Error deleting password.");
+                            exit(1);
+                        }
+                    };
+                    true
+                }
+            }
+            else {
+                match self.pw_core.delete_password(id.as_str()) {
+                    Ok(_) => true,
+                    Err(_) => {
+                        println!("Error deleting password.");
+                        exit(1);
+                    }
+                }
             }
         }
     }
