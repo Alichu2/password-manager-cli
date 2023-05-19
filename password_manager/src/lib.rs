@@ -50,7 +50,7 @@ mod password_manager {
         }
 
         fn get_save_dir_path(&self) -> PathBuf {
-            self.get_home_path().join(".password-manager/")
+            self.get_home_path().join(".password_manager/")
         }
 
         fn get_save_file_path(&self) -> PathBuf {
