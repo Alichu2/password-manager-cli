@@ -33,7 +33,7 @@ mod password_manager {
             }
         }
 
-        #[cfg(debug_assertions)]
+        #[cfg(not(debug_assertions))]
         fn get_home_path(&self) -> PathBuf {
             match home_dir() {
                 None => {
@@ -44,13 +44,13 @@ mod password_manager {
             }
         }
 
-        #[cfg(not(debug_assertions))]
+        #[cfg(debug_assertions)]
         fn get_home_path(&self) -> PathBuf {
             PathBuf::from("./")
         }
 
         fn get_save_dir_path(&self) -> PathBuf {
-            self.get_home_path().join(".password_manager/")
+            self.get_home_path().join(".password-manager/")
         }
 
         fn get_save_file_path(&self) -> PathBuf {
@@ -239,7 +239,7 @@ pub mod password_interface {
     }
 
     pub struct PasswordManagerInterface {
-        pw_core: PasswordManager,
+        pub pw_core: PasswordManager,
     }
 
     impl PasswordManagerInterface {
@@ -249,20 +249,7 @@ pub mod password_interface {
             }
         }
 
-        fn get_key_if_required(&self, passwords: &Vec<Password>) -> Option<String> {
-            for password in passwords.iter() {
-                if password.encrypted {
-                    return Some(String::from("temp_key"));
-                }
-            }
-            None
-        }
-
-        fn print_passwords(&self, passwords: Vec<Password>) {
-            let key = match self.get_key_if_required(&passwords) {
-                Some(key) => key,
-                None => String::new()
-            };
+        fn print_passwords(&self, passwords: Vec<Password>, key: &str) {
             let mut password_count: usize = 0;
 
             for password in passwords.iter() {
@@ -270,7 +257,7 @@ pub mod password_interface {
                 println!("  place = {}", &password.place);
                 println!("  username = {}", &password.username);
                 if password.encrypted {
-                    println!("  password = {}", match self.pw_core.decrypt(&key, &password.password) {
+                    println!("  password = {}", match self.pw_core.decrypt(key, &password.password) {
                         Ok(val) => val,
                         Err(_) => {
                             println!("Problem decrypting your password. Try again or report an issue.");
@@ -286,12 +273,17 @@ pub mod password_interface {
             }
         }
 
-        pub fn load_password(&self, place: &str) {
+        pub fn load_password(&self, place: &str, key: &str) {
+            if !self.pw_core.verify_key(key) {
+                println!("Incorrect key.");
+                exit(1);
+            }
+
             let result = self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + place + "%';"));
 
             match result {
                 Ok(val) => {
-                    self.print_passwords(val);
+                    self.print_passwords(val, key);
                 },
                 Err(_) => {
                     println!("An error occurred when loading your passwords. Please try again or report an issue.");
@@ -316,40 +308,38 @@ pub mod password_interface {
             }
         }
 
-        pub fn generate_password(&self, save: bool, special_char: bool, upper_case: bool, digits: bool, length: usize, uname: String, place: String, encrypt: bool, key: String) {
-            let generated_password = self.pw_core.generate(length, upper_case, digits, special_char);
-
-            if save {
-                let saving_password: String;
-
-                if encrypt {
-                    if self.pw_core.verify_key(&key) {
-                        saving_password = self.pw_core.encrypt(&generated_password, &key);
-                    }
-                    else {
-                        println!("Incorrect key, try again.");
-                        exit(1);
-                    }
-                }
-                else {
-                    saving_password = generated_password.to_string();
-                }
-
-                match self.pw_core.save_password(&saving_password, &uname, &place, encrypt) {
-                    Ok(_) => (),
-                    Err(_) => {
-                        println!("Error occurred while saving password.");
-                        exit(1);
-                    }
-                }
-                println!("saved password:\n  password = {}\n  username = {}\n  place = {}", generated_password, uname, place);
-            }
-            else {
-                println!("Generated password = {}", generated_password);
-            }
+        pub fn generate_password(&self, special_char: bool, upper_case: bool, digits: bool, length: usize) -> String {
+            self.pw_core.generate(length, upper_case, digits, special_char)
         }
 
-        pub fn delete_password(&self, place: String, using_id: bool, id: String) -> bool {
+        pub fn generate_and_save(&self, special_char: bool, upper_case: bool, digits: bool, length: usize, uname: String, place: String, encrypt: bool, key: String) {
+            let generated_password = self.generate_password(special_char, upper_case, digits, length);
+            let saving_password: String;
+
+            if encrypt {
+                if self.pw_core.verify_key(&key) {
+                    saving_password = self.pw_core.encrypt(&generated_password, &key);
+                }
+                else {
+                    println!("Incorrect key, try again.");
+                    exit(1);
+                }
+            }
+            else {
+                saving_password = generated_password.to_string();
+            }
+
+            match self.pw_core.save_password(&saving_password, &uname, &place, encrypt) {
+                Ok(_) => (),
+                Err(_) => {
+                    println!("Error occurred while saving password.");
+                    exit(1);
+                }
+            }
+            println!("saved password:\n  password = {}\n  username = {}\n  place = {}", generated_password, uname, place);
+        }
+
+        pub fn delete_password(&self, place: String, using_id: bool, id: String, key: &str) -> bool {
             if !using_id {
                  let passwords = match self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + &place + "%';")) {
                     Ok(val) => val,
@@ -360,7 +350,7 @@ pub mod password_interface {
                 };
 
                 if passwords.len() > 1 {
-                    self.print_passwords(passwords);
+                    self.print_passwords(passwords, key);
                     return false;
                 }
                 else {
@@ -383,6 +373,10 @@ pub mod password_interface {
                     }
                 }
             }
+        }
+
+        pub fn save_file_exists(&self) -> bool {
+            self.pw_core.save_file_exists()
         }
     }
 }
