@@ -26,7 +26,14 @@ pub mod cli {
         pub fn get_param(&self, param_name: &str) -> String {
             for arg_index in 0..self.arguments.len() {
                 if self.arguments[arg_index] == "-".to_string() + param_name {
-                    return (self.arguments[arg_index + 1]).to_string();
+                    let val = match self.arguments.get(arg_index + 1) {
+                        Some(val) => val,
+                        None => {
+                            println!("No parameter was given for `{}`.", param_name);
+                            exit(1);
+                        }
+                    };
+                    return val.to_string();
                 }
             }
             return "".to_string()
