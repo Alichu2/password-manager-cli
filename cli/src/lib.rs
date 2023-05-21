@@ -1,5 +1,7 @@
 pub mod cli {
     use std::io::stdin;
+    use std::process::exit;
+    use rpassword;
 
     pub struct  CLI {
         pub arguments: Vec<String>,
@@ -12,7 +14,13 @@ pub mod cli {
         }
 
         pub fn get_command(&self) -> &str {
-            &self.arguments[1]
+            match self.arguments.get(1) {
+                Some(val) => &val,
+                None => {
+                    println!("No command was found. Use `--help` for more info.");
+                    exit(1);
+                }
+            }
         }
 
         pub fn get_param(&self, param_name: &str) -> String {
@@ -24,18 +32,34 @@ pub mod cli {
             return "".to_string()
         }
 
+        pub fn get_password(&self, prompt: &str) -> String {
+            match rpassword::prompt_password(prompt) {
+                Ok(val) => {
+                    if val.trim().is_empty() {
+                        println!("No password entered. Try Again!");
+                        exit(1);
+                    }
+                    val.trim().to_string()
+                },
+                Err(_) => {
+                    println!("Error reading password");
+                    exit(1);
+                }
+            }
+        }
+
         pub fn ask(&self, question: &str) -> String {
             let mut awnser = String::new();
             println!("{}", question);
             stdin().read_line(&mut awnser).expect("Failed to read line. Try Again.");
-            awnser
+            awnser.trim().to_string()
         }
 
         pub fn read_required(&self, flag: &str, description: &str) -> String {
             let mut val: String = self.get_param(flag);
             if val.is_empty() {
                 val = self.ask(description);
-                if val.trim().is_empty() {
+                if val.is_empty() {
                     println!("Please try again by actually entering a value.");
                     std::process::exit(2);
                 }
