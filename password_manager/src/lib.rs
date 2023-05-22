@@ -228,6 +228,8 @@ CREATE TABLE config (name TEXT, value TEXT);") {
 }
 
 pub mod password_interface {
+    use std::fs::File;
+    use std::io::Write;
     use std::path::PathBuf;
     use super::password_manager::PasswordManager;
     use std::process::exit;
@@ -413,7 +415,7 @@ pub mod password_interface {
             println!("saved password:\n  password = {}\n  username = {}\n  place = {}", password, username, place);
         }
 
-        pub fn create_backup(&self, _path: PathBuf, key: &str, encrypt: bool, file_key: &str) {
+        pub fn create_backup(&self, path: PathBuf, key: &str, encrypt: bool, file_key: &str) {
             self.verify_key(key);
 
             let mut file_string: String = String::new();
@@ -443,8 +445,28 @@ pub mod password_interface {
                 file_string.push_str(&format!("{}|{}|{}\n", save_password, password.username, password.place));
             }
 
+            let mut file = match File::create(path.join("password_backup.txt")) {
+                Ok(val) => val,
+                Err(_) => {
+                    println!("Error creating file.");
+                    exit(1);
+                }
+            };
+
+            let file_contents;
             if encrypt {
-                println!("{}", self.pw_core.encrypt(&file_string, file_key));
+                file_contents = self.pw_core.encrypt(&file_string, file_key);
+            }
+            else {
+                file_contents = file_string;
+            }
+
+            match file.write_all((&file_contents).as_bytes()) {
+                Ok(_) => (),
+                Err(_) => {
+                    println!("Error writing to file");
+                    exit(1);
+                }
             }
         }
 
