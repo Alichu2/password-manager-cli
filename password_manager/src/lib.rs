@@ -228,6 +228,7 @@ CREATE TABLE config (name TEXT, value TEXT);") {
 }
 
 pub mod password_interface {
+    use std::path::PathBuf;
     use super::password_manager::PasswordManager;
     use std::process::exit;
 
@@ -401,9 +402,50 @@ pub mod password_interface {
                 saving_password = password.to_string();
             }
 
-            self.pw_core.save_password(&saving_password, username, place, encrypt);
+            match self.pw_core.save_password(&saving_password, username, place, encrypt) {
+                Ok(_) => (),
+                Err(_) => {
+                    println!("Problem saving password. Try Again.");
+                    exit(1);
+                }
+            }
 
             println!("saved password:\n  password = {}\n  username = {}\n  place = {}", password, username, place);
+        }
+
+        pub fn create_backup(&self, _path: PathBuf, key: &str, encrypt: bool, file_key: &str) {
+            self.verify_key(key);
+
+            let mut file_string: String = String::new();
+            let passwords = match self.pw_core.get_passwords("SELECT * FROM passwords;") {
+                Ok(val) => val,
+                Err(_) => {
+                    println!("An error ocurred trying to generate your backup file.");
+                    exit(1);
+                }
+            };
+
+            for password in passwords.iter() {
+                let save_password;
+
+                if password.encrypted {
+                    save_password = match self.pw_core.decrypt(&password.password, key) {
+                        Ok(val) => val,
+                        Err(_) => {
+                            println!("Error decrypting.");
+                            exit(1);
+                        }
+                    };
+                }
+                else {
+                    save_password = password.password.clone();
+                }
+                file_string.push_str(&format!("{}|{}|{}\n", save_password, password.username, password.place));
+            }
+
+            if encrypt {
+                println!("{}", self.pw_core.encrypt(&file_string, file_key));
+            }
         }
 
         fn verify_key(&self, key: &str) {
