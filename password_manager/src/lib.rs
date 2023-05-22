@@ -156,13 +156,14 @@ mod password_manager {
                 Ok(val) => {
                     let mut unpacked_passwords = Vec::new();
 
+
                     for packed_password in val.iter() {
                         unpacked_passwords.push(Password {
                             password: packed_password.get_or_default("password", String::from("none")),
                             place: packed_password.get_or_default("place", String::from("none")),
                             username: packed_password.get_or_default("username", String::from("none")),
                             id: packed_password.get_or_default("id", String::from("0")).parse::<usize>().expect("Error parsing password."),
-                            encrypted: packed_password.get_or_default("encrypted", String::from("1")) == String::from("1"),
+                            encrypted: &(packed_password.get_or_default("is_encrypted", String::from("1"))) == "1",
                         })
                     }
 
