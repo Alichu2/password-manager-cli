@@ -1,6 +1,8 @@
 pub mod cli {
     use std::io::stdin;
     use std::process::exit;
+    use std::env::current_dir;
+    use std::path::PathBuf;
     use rpassword;
 
     pub struct  CLI {
@@ -37,6 +39,16 @@ pub mod cli {
                 }
             }
             return "".to_string()
+        }
+
+        pub fn get_current_dir(&self) -> PathBuf {
+            match current_dir() {
+                Ok(val) => val,
+                Err(_) => {
+                    println!("Error getting currenct dir.");
+                    exit(1);
+                }
+            }
         }
 
         pub fn get_password(&self, prompt: &str) -> String {
