@@ -1,4 +1,5 @@
 use std::env;
+use std::path::PathBuf;
 
 use cli::cli::CLI;
 use password_manager::password_interface::PasswordManagerInterface;
@@ -107,6 +108,16 @@ fn main() {
                     &key
                 );
                 }
+            },
+            "backup" => {
+                interface.create_backup(
+                    cli.get_current_dir(),
+                    &cli.get_password("Key: "),
+                    !cli.contains_flag("no-encrypt"),
+                    &cli.get_password("File key (used to encrypt and later decrypt file): ")
+                );
+
+                println!("Backup created");
             },
             invalid => println!("`{}` is not a recognized command. Please enter a valid command. Use `--help` for more information.", invalid)
         }
