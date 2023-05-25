@@ -25,6 +25,16 @@ pub mod cli {
             }
         }
 
+        pub fn get_command_index(&self, index: usize, error: &str) -> &str {
+            match self.arguments.get(index + 1) {
+                Some(val) => &val,
+                None => {
+                    println!("{} Use `--help` for more info.", error);
+                    exit(1);
+                }
+            }
+        }
+
         pub fn get_param(&self, param_name: &str) -> String {
             for arg_index in 0..self.arguments.len() {
                 if self.arguments[arg_index] == "-".to_string() + param_name {
