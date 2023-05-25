@@ -1,5 +1,4 @@
 use std::env;
-use std::path::PathBuf;
 
 use cli::cli::CLI;
 use password_manager::password_interface::PasswordManagerInterface;
@@ -7,7 +6,7 @@ use password_manager::password_interface::PasswordManagerInterface;
 
 fn main() {
     let cli = CLI { arguments: env::args().collect() };
-    let interface = PasswordManagerInterface::new();
+    let interface: PasswordManagerInterface = PasswordManagerInterface::new();
 
     if cli.contains_flag("help") {
         cli.help();
@@ -102,11 +101,11 @@ fn main() {
 
                 if !success {
                     interface.delete_password(
-                    String::new(),
-                    true,
-                    cli.ask("Enter the ID of the password you want to delete: "),
-                    &key
-                );
+                        String::new(),
+                        true,
+                        cli.ask("Enter the ID of the password you want to delete: "),
+                        &key
+                    );
                 }
             },
             "backup" => {
@@ -118,6 +117,14 @@ fn main() {
                 );
 
                 println!("Backup created");
+            },
+            "restore" => {
+                interface.restore_backup(
+                    cli.get_current_dir().join(cli.get_command_index(1, "Please enter file path.")),
+                    !cli.contains_flag("no-encrypt"),
+                    &cli.get_password("Key: "),
+                    &cli.get_password("File Key (leave empty if file is not encrypted): "),
+                );
             },
             invalid => println!("`{}` is not a recognized command. Please enter a valid command. Use `--help` for more information.", invalid)
         }
