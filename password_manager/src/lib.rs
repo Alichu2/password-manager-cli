@@ -228,6 +228,7 @@ CREATE TABLE config (name TEXT, value TEXT);") {
 }
 
 pub mod password_interface {
+    use std::fs;
     use std::fs::File;
     use std::io::Write;
     use std::path::PathBuf;
@@ -466,6 +467,53 @@ pub mod password_interface {
                 Err(_) => {
                     println!("Error writing to file");
                     exit(1);
+                }
+            }
+        }
+
+        pub fn restore_backup(&self, file: PathBuf, encrypt: bool, key: &str, file_key: &str) {
+            self.verify_key(key);
+
+            let file_contents: String = match fs::read_to_string(file) {
+                Ok(val) => val,
+                Err(_) => {
+                    println!("Error reading backup file.");
+                    exit(1);
+                }
+            };
+            let processing_string;
+
+            if !file_contents.contains("|") {
+                processing_string = match self.pw_core.decrypt(&file_contents, file_key) {
+                    Ok(val) => val.trim().to_string(),
+                    Err(_) => {
+                        println!("Error decrypting file.");
+                        exit(1);
+                    }
+                }
+            }
+            else {
+                processing_string = file_contents.trim().to_string();
+            }
+
+
+            for line in processing_string.split("\n") {
+                let line_contents: Vec<&str> = line.split("|").collect();
+                let save_password;
+
+                if encrypt {
+                    save_password = self.pw_core.encrypt(line_contents[0], key);
+                }
+                else {
+                    save_password = line_contents[0].to_string();
+                }
+
+                match self.pw_core.save_password(&save_password, line_contents[1], line_contents[2], encrypt) {
+                    Ok(_) => (),
+                    Err(_) => {
+                        println!("Error saving password.");
+                        exit(1);
+                    }
                 }
             }
         }
