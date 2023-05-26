@@ -6,7 +6,7 @@ pub mod cli {
     use rpassword;
 
     pub struct  CLI {
-        pub arguments: Vec<String>,
+        arguments: Vec<String>,
     }
     
 
