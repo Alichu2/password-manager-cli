@@ -14,7 +14,7 @@ fn main() {
         cli.help();
     }
     else if cli.contains_flag("version") {
-        println!("Password-Manager Version: {}\nCopyright (c) 2023 Aliyu Nauke", env!("CARGO_PKG_VERSION"));
+        println!("password-manager-cli Version: {}\nCopyright (c) 2023 Aliyu Nauke", env!("CARGO_PKG_VERSION"));
     }
     else if cli.contains_flag("new-key") {
         let new_key = cli.get_password("Please input an access key. This will be used to encrypt and decrypt passwords. Keys are never stored: ");

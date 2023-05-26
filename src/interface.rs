@@ -24,7 +24,7 @@ impl PasswordManagerInterface {
             if print_id {
                 println!("\n{} (ID = {}):", index, password.id);
             }
-            else {
+            else if passwords.len() > 1 {
                 println!("\n{}:", index);
             }
             println!("  place = {}", &password.place);
@@ -148,11 +148,11 @@ impl PasswordManagerInterface {
                 exit(1);
             }
         }
-        println!("saved password:\n  password = {}\n  username = {}\n  place = {}", generated_password, uname, place);
+        println!("\nSaved Password:\n  password = {}\n  username = {}\n  place = {}", generated_password, uname, place);
     }
 
     pub fn delete_password(&self, place: String) {
-        let _key = self.get_key(); // Make sure they have the authority to delete a password.
+        let key = self.get_key(); // Make sure they have the authority to delete a password.
 
         let passwords = match self.pw_core.get_passwords(&("SELECT * FROM passwords WHERE place LIKE '%".to_string() + &place + "%';")) {
             Ok(val) => val,
@@ -163,7 +163,7 @@ impl PasswordManagerInterface {
         };
 
         if passwords.len() > 1 {
-            self.password_printing_manager(passwords, true, None);
+            self.password_printing_manager(passwords, true, Some(key));
 
             let id = self.cli.ask("Enter the ID of the password you want to delete:");
 
@@ -208,7 +208,7 @@ impl PasswordManagerInterface {
             }
         }
 
-        println!("saved password:\n  password = {}\n  username = {}\n  place = {}", password, username, place);
+        println!("\nSaved Password:\n  password = {}\n  username = {}\n  place = {}", password, username, place);
     }
 
     pub fn create_backup(&self, path: PathBuf, encrypt: bool) {
