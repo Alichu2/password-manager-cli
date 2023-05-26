@@ -46,6 +46,7 @@ impl PasswordManagerInterface {
 
     fn password_printing_manager(&self, passwords: Vec<Password>, print_id: bool, key: Option<String>) {
         let mut requires_key: bool = false;
+        let number_passwords = passwords.len();
 
         for password in passwords.iter() {
             if password.encrypted {
@@ -66,6 +67,7 @@ impl PasswordManagerInterface {
         };
 
         self.print_passwords(passwords, &key, print_id);
+        println!("\n{} password(s) in total.", number_passwords);
     }
 
     fn verify_key(&self, key: &str) {
