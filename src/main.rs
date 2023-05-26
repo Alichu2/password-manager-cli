@@ -7,7 +7,7 @@ use interface::PasswordManagerInterface;
 
 
 fn main() {
-    let cli = CLI { arguments: env::args().collect() };
+    let cli: CLI = CLI::from(env::args().collect());
     let interface: PasswordManagerInterface = PasswordManagerInterface::new();
 
     if cli.contains_flag("help") {
@@ -30,22 +30,12 @@ fn main() {
         match cli.get_command() {
             "generate" => {
                 let save = cli.contains_flag("save");
-                let encrypt = !cli.contains_flag("no-encrypt");
                 let length = match cli.get_param("l").parse() {
                     Ok(val) => val,
                     Err(_) => 6
                 };
 
                 if save {
-                    let key: String;
-
-                    if encrypt {
-                        key = cli.get_password("Key: ");
-                    }
-                    else {
-                        key = String::new();
-                    }
-
                     interface.generate_and_save(
                         !cli.contains_flag("no-special"),
                         !cli.contains_flag("no-upper"),
@@ -53,8 +43,7 @@ fn main() {
                         length,
                         cli.read_required("u", "Username for the password:"),
                         cli.read_required("p", "Name for the password:"),
-                        encrypt,
-                        key
+                        !cli.contains_flag("no-encrypt")
                     );
                 }
                 else {
@@ -69,51 +58,29 @@ fn main() {
                 }
             },
             "load" => {
-                let key = cli.get_password("Key: ");
-
                 if cli.contains_flag("all") {
-                    interface.load_all_passwords(&key)
+                    interface.load_all_passwords()
                 }
                 else {
-                    interface.load_password(
-                        &cli.read_required("p", "Password Name:"),
-                        &key
-                    );
+                    interface.load_password(&cli.read_required("p", "Password Name:"));
                 }
             },
             "add" => {
-                let key = cli.get_password("Key: ");
-
                 interface.add_password(
                     &cli.ask("New password to be saved: "),
                     &cli.read_required("u", "Password username: "),
                     &cli.read_required("p", "Password name: "),
                     !cli.contains_flag("no-encrypt"),
-                    &key,
                 );
             },
             "delete" => {
-                let key = cli.get_password("Key: ");
-                let success = interface.delete_password(
-                    cli.read_required("p", "Name of password to be deleted: "),
-                    false,
-                    String::new(),
-                    &key
-                );
+                let place = cli.read_required("p", "Name of password to be deleted:");
 
-                if !success {
-                    interface.delete_password(
-                        String::new(),
-                        true,
-                        cli.ask("Enter the ID of the password you want to delete: "),
-                        &key
-                    );
-                }
+                interface.delete_password(place);
             },
             "backup" => {
                 interface.create_backup(
                     cli.get_current_dir(),
-                    &cli.get_password("Key: "),
                     !cli.contains_flag("no-encrypt"),
                     &cli.get_password("File key (used to encrypt and later decrypt file): ")
                 );
@@ -124,7 +91,6 @@ fn main() {
                 interface.restore_backup(
                     cli.get_current_dir().join(cli.get_command_index(1, "Please enter file path.")),
                     !cli.contains_flag("no-encrypt"),
-                    &cli.get_password("Key: "),
                     &cli.get_password("File Key (leave empty if file is not encrypted): "),
                 );
             },
