@@ -11,6 +11,18 @@ pub mod cli {
     
 
     impl CLI {
+        pub fn from(arguments: Vec<String>) -> Self {
+            Self {
+                arguments
+            }
+        }
+        
+        pub fn new() -> Self {
+            Self {
+                arguments: Vec::new()
+            }
+        }
+        
         pub fn contains_flag(&self, flag: &str) -> bool {
             self.arguments.iter().any(|arg| arg.to_string()=="--".to_string() + flag)
         }
