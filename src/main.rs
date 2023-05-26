@@ -1,7 +1,9 @@
+mod interface;
+
 use std::env;
 
 use cli::cli::CLI;
-use password_manager::password_interface::PasswordManagerInterface;
+use interface::PasswordManagerInterface;
 
 
 fn main() {
