@@ -81,8 +81,7 @@ fn main() {
             "backup" => {
                 interface.create_backup(
                     cli.get_current_dir(),
-                    !cli.contains_flag("no-encrypt"),
-                    &cli.get_password("File key (used to encrypt and later decrypt file): ")
+                    !cli.contains_flag("no-encrypt")
                 );
 
                 println!("Backup created");
@@ -90,8 +89,7 @@ fn main() {
             "restore" => {
                 interface.restore_backup(
                     cli.get_current_dir().join(cli.get_command_index(1, "Please enter file path.")),
-                    !cli.contains_flag("no-encrypt"),
-                    &cli.get_password("File Key (leave empty if file is not encrypted): "),
+                    !cli.contains_flag("no-encrypt")
                 );
             },
             invalid => println!("`{}` is not a recognized command. Please enter a valid command. Use `--help` for more information.", invalid)

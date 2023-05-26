@@ -211,7 +211,7 @@ impl PasswordManagerInterface {
         println!("saved password:\n  password = {}\n  username = {}\n  place = {}", password, username, place);
     }
 
-    pub fn create_backup(&self, path: PathBuf, encrypt: bool, file_key: &str) {
+    pub fn create_backup(&self, path: PathBuf, encrypt: bool) {
         let key = self.get_key();
         let mut file_string: String = String::new();
         let passwords = match self.pw_core.get_passwords("SELECT * FROM passwords;") {
@@ -250,7 +250,14 @@ impl PasswordManagerInterface {
 
         let file_contents;
         if encrypt {
-            file_contents = self.pw_core.encrypt(&file_string, file_key);
+            let file_key = self.cli.get_password("File key (used to encrypt and later decrypt file): ");
+            if file_key == self.cli.get_password("Confirm file key: ") {
+                file_contents = self.pw_core.encrypt(&file_string, &file_key);
+            }
+            else {
+                println!("Different keys! Try again.");
+                exit(1);
+            }
         }
         else {
             file_contents = file_string;
@@ -265,7 +272,7 @@ impl PasswordManagerInterface {
         }
     }
 
-    pub fn restore_backup(&self, file: PathBuf, encrypt: bool, file_key: &str) {
+    pub fn restore_backup(&self, file: PathBuf, encrypt: bool) {
         let key = self.get_key();
         let file_contents: String = match fs::read_to_string(file) {
             Ok(val) => val,
@@ -277,7 +284,7 @@ impl PasswordManagerInterface {
         let processing_string;
 
         if !file_contents.contains("|") {
-            processing_string = match self.pw_core.decrypt(&file_contents, file_key) {
+            processing_string = match self.pw_core.decrypt(&file_contents, &self.cli.get_password("File key: ")) {
                 Ok(val) => val.trim().to_string(),
                 Err(_) => {
                     println!("Error decrypting file.");
