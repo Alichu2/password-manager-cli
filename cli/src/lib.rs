@@ -16,13 +16,13 @@ pub mod cli {
                 arguments
             }
         }
-        
+
         pub fn new() -> Self {
             Self {
                 arguments: Vec::new()
             }
         }
-        
+
         pub fn contains_flag(&self, flag: &str) -> bool {
             self.arguments.iter().any(|arg| arg.to_string()=="--".to_string() + flag)
         }
@@ -109,10 +109,14 @@ pub mod cli {
         }
 
         pub fn help(&self) {
-            println!("This is the CLI Password Manager help guide.
+            println!("   Copyright (c) 2023 Aliyu Nauke
+====================================
+
+This is the password-manager-cli help guide.
+
 Commands:
     load           Find a previously generated password with a place name, url or ID.
-    generate       Generate a password. Doesn't have to be saved.
+    generate       Generate a password.
     backup         Create a backup of the saved passwords to a file. The contents of the file can be not encrypted with --no-encrypt.
     restore        Load a backup and save all the passwords in the backup file. The passwords can be saved without encryption with --no-encrypt.
     delete         Delete a password with a specified place. If multiple are found, it will prompt to specify the one to be eliminated.
@@ -120,21 +124,22 @@ Commands:
 
 Arguments:
     --save         Save the generated password. The password will be encrypted.
-    --no-special   Don't include spacial characters in the generated password.
-    --no-upper     Don't include uppercase characters in the generated password.
-    --no-digits    Don't include digits in the generated password.
-    --no-encrypt   Wont encrypt your password when saving. It will still prompt you for the access key, but input will be ignored.
+    --no-special   Exclude spacial characters in the generated password.
+    --no-upper     Exclude uppercase characters in the generated password.
+    --no-digits    Exclude digits in the generated password.
+    --no-encrypt   Won't encrypt your password when saving. It will still prompt you for the access key, but input will be ignored.
     --help         Manual (what you are currently reading).
     --new-key      Enter your key. Can only be done once so remember it as it is necessary to decrypt passwords. The key will not be saved in any form.
     --all          Selects all passwords for loading and displaying.
     --version      Password-Manager's version.
 
-    -u (username)  Username for the saved password.
-    -p (place)     Place name, url or ID for the usage of the password.
+    -u (username)  Password's username.
+    -p (name)      Password's name.
     -l (length)    Length of the generated password. Defaults to 6 characters.
-    -f (file)      Specify the file use to restore the backuped passwords.
 
-If you want to delete all the passwords, you can delete the file data.sqlite in the folder ~/.password-manager/.");
+If you want to delete all the passwords, you can delete the file data.sqlite in the folder ~/.password-manager/.
+
+Visit <https://github.com/Alichu2/password-manager-cli> for more information.");
         }
     }
 }
