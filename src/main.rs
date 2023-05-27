@@ -67,7 +67,7 @@ fn main() {
             },
             "add" => {
                 interface.add_password(
-                    &cli.ask("New password to be saved: "),
+                    &cli.ask("New password: "),
                     &cli.read_required("u", "Password username: "),
                     &cli.read_required("p", "Password name: "),
                     !cli.contains_flag("no-encrypt"),
