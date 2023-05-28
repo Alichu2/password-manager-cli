@@ -1,8 +1,8 @@
+// Library used to access commandline arguments and user input.
+
 pub mod cli {
     use std::io::stdin;
     use std::process::exit;
-    use std::env::current_dir;
-    use std::path::PathBuf;
     use rpassword;
 
     pub struct  CLI {
@@ -24,56 +24,35 @@ pub mod cli {
         }
 
         pub fn contains_flag(&self, flag: &str) -> bool {
-            self.arguments.iter().any(|arg| arg.to_string()=="--".to_string() + flag)
+            let flag_in_cli = "--".to_string() + flag;
+            self.arguments.iter().any(|arg| arg == &flag_in_cli)
         }
 
-        pub fn get_command(&self) -> &str {
-            match self.arguments.get(1) {
-                Some(val) => &val,
-                None => {
-                    println!("No command was found. Use `--help` for more info.");
-                    exit(1);
+        pub fn get_command(&self) -> Option<&String> {
+            self.get_argument(0)
+        }
+
+        pub fn get_argument(&self, index: usize) -> Option<&String> {
+            self.arguments.get(index + 1)
+        }
+
+        pub fn find_argument(&self, needle: &str) -> Option<usize> {
+            for (index, item) in self.arguments.iter().enumerate() {
+                if item == needle {
+                    return Some(index - 1);
                 }
+            }
+            None
+        }
+
+        pub fn get_option_value(&self, param_name: &str) -> Option<&String> {
+            match self.find_argument(param_name) {
+                Some(val) => self.get_argument(val + 1),
+                None => None,
             }
         }
 
-        pub fn get_command_index(&self, index: usize, error: &str) -> &str {
-            match self.arguments.get(index + 1) {
-                Some(val) => &val,
-                None => {
-                    println!("{} Use `--help` for more info.", error);
-                    exit(1);
-                }
-            }
-        }
-
-        pub fn get_param(&self, param_name: &str) -> String {
-            for arg_index in 0..self.arguments.len() {
-                if self.arguments[arg_index] == "-".to_string() + param_name {
-                    let val = match self.arguments.get(arg_index + 1) {
-                        Some(val) => val,
-                        None => {
-                            println!("No parameter was given for `{}`.", param_name);
-                            exit(1);
-                        }
-                    };
-                    return val.to_string();
-                }
-            }
-            return "".to_string()
-        }
-
-        pub fn get_current_dir(&self) -> PathBuf {
-            match current_dir() {
-                Ok(val) => val,
-                Err(_) => {
-                    println!("Error getting currenct dir.");
-                    exit(1);
-                }
-            }
-        }
-
-        pub fn get_password(&self, prompt: &str) -> String {
+        pub fn prompt_password(&self, prompt: &str) -> String {
             match rpassword::prompt_password(prompt) {
                 Ok(val) => {
                     if val.trim().is_empty() {
@@ -89,23 +68,20 @@ pub mod cli {
             }
         }
 
-        pub fn ask(&self, question: &str) -> String {
-            let mut awnser = String::new();
+        pub fn prompt(&self, question: &str) -> Option<String> {
+            let mut answer = String::new();
             println!("{}", question);
-            stdin().read_line(&mut awnser).expect("Failed to read line. Try Again.");
-            awnser.trim().to_string()
+            match stdin().read_line(&mut answer) {
+                Ok(_) => Some(answer.trim().to_string()),
+                Err(_) => None
+            }
         }
 
-        pub fn read_required(&self, flag: &str, description: &str) -> String {
-            let mut val: String = self.get_param(flag);
-            if val.is_empty() {
-                val = self.ask(description);
-                if val.is_empty() {
-                    println!("Please try again by actually entering a value.");
-                    std::process::exit(2);
-                }
+        pub fn prompt_missing_flag(&self, flag: &str, question: &str) -> Option<String> {
+            match self.get_option_value(flag) {
+                Some(val) => Some(val.clone()),
+                None => self.prompt(question),
             }
-            val
         }
 
         pub fn help(&self) {
