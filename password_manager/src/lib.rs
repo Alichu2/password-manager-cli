@@ -3,40 +3,41 @@ pub mod password_manager {
     use std::fs;
     use rand::prelude::IteratorRandom;
     use std::path::PathBuf;
-    use dirs::home_dir;
     use sqlite;
     use std::process::exit;
     use magic_crypt::{new_magic_crypt, MagicCryptTrait};
+    use sqlite::Bindable;
 
-    trait GetDefault {
-        fn get_or_default(&self, key: &str, default: String) -> String;
-    }
-
-    impl GetDefault for HashMap<&str, String> {
-        fn get_or_default(&self, key: &str, default: String) -> String {
-            match self.get(key) {
-                Some(result) => result.clone(),
-                None => default
-            }
-        }
-    }
+    #[allow(unused_imports)]
+    use dirs::home_dir;
 
     pub struct Password {
         pub password: String,
         pub username: String,
         pub place: String,
         pub encrypted: bool,
-        pub id: usize,
     }
 
+    /*
+    >> How does `access_check_plain` work? <<
+    When a save file is created with --new-key , the key that the user enters is not saved. But to prevent the user accidentally saving
+    a password with an incorrect key or to prevent malicious intent, a string (access_check_plain) is encrypted with the key when the
+    save file is created. Whenever the user wants to perform an action, the saved ciphertext gets decrypted with the user entered key
+    and compared with access_check_plain to make sure it is the correct key.
+     */
+
+    // TODO: Check that having plaintext and ciphertext makes it easy to figure out the key.
+
+    static CONF_ACCESS_CHECK: &str = "access_check_cipher";
+
     pub struct PasswordManager {
-        sample_str_ref: &'static str,
+        access_check_plain: &'static str,
     }
 
     impl PasswordManager {
         pub fn new() -> Self {
             Self {
-                sample_str_ref: "test string to encrypt",
+                access_check_plain: "test string to encrypt",
             }
         }
 
@@ -74,54 +75,106 @@ pub mod password_manager {
 
         fn get_sqlite_connection(&self) -> sqlite::Connection {
             match sqlite::open(&self.get_save_file_path_str()) {
-                Ok(connection) => connection,
+                Ok(val) => val,
                 Err(_) => {
-                    println!("An error occurred when trying to open the save file. This might be due to the fact that the file is not generated. Generate it with `password-manager create`");
+                    println!("Failed to get connection. Is the save file ok?");
                     exit(1);
                 }
             }
         }
 
-        fn execute_sql(&self, query: &str) -> Result<(), ()> {
+        fn execute_sql<T: Bindable>(&self, query: &str, params: T, empty_params: bool) {
             let connection = self.get_sqlite_connection();
+            let mut statement = connection.prepare(query).expect("Error preparing connection.");
 
-            match connection.execute(query) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(())
+            if !empty_params {
+                statement.bind(params).expect("Error running sql.");
             }
+
+            statement.next().expect("Error running sql.");
         }
 
-        fn read_sql_data<'a>(&'a self, fields: Vec<&'a str>, search_query: &str) -> Result<Vec<HashMap<&str, String>>, ()> {
+        pub fn read_from_sql<T: Bindable>(&self, query: &str, params: T, columns: Vec<&str>, empty_params: bool) -> Vec<HashMap<String, String>> {
             let connection = self.get_sqlite_connection();
+            let mut statement = connection.prepare(query).expect("Error preparing sql connection.");
+            let mut result = Vec::new();
 
-            let result = match connection.prepare(search_query) {
-                Ok(mut statement) => {
-                    let mut result_data: Vec<HashMap<&str, String>> = Vec::new();
+            if !empty_params {
+                statement.bind(params).expect("Error binding sql.");
+            }
 
-                    while let Ok(sqlite::State::Row) = statement.next() {
-                        let mut row_data: HashMap<&str, String> = HashMap::new();
+            while let Ok(sqlite::State::Row) = statement.next() {
+                let mut row_result: HashMap<String, String> = HashMap::new();
 
-                        for field in fields.iter() {
-                            let value = statement.read::<String, _>(field.clone()).expect("Error reading values from save file.");
-                            row_data.insert(field, value);
-                        }
-
-                        result_data.push(row_data);
-                    }
-
-                    Ok(result_data)
-                },
-                Err(_) => Err(())
-            };
+                for column in columns.iter() {
+                    let value = statement.read::<String, _>(column.clone()).expect("Error reading value.");
+                    row_result.insert(String::from(column.clone()), value);
+                }
+                result.push(row_result);
+            }
             result
         }
 
-        pub fn generate(&self, length: usize, include_uppercase: bool, include_digits: bool, include_special: bool) -> String {
-            let mut generated_password = String::new();
+        pub fn save_new_key(&self, key: String) {
+            let access_check_cipher = self.encrypt(self.access_check_plain, &key);
 
+            self.execute_sql("INSERT INTO config (name, value) VALUES (:key, :cipher);",
+                             &[(":key", CONF_ACCESS_CHECK), (":cipher", &access_check_cipher)][..], false);
+        }
+
+        pub fn save_password(&self, password: &str, username: &str, place: &str, encrypt: bool, key: Option<&str>) {
+            let save_password;
+
+            if encrypt {
+                save_password = self.encrypt(password, key.unwrap());
+            }
+            else {
+                save_password = password.to_string();
+            }
+
+            self.execute_sql("INSERT OR REPLACE INTO passwords (password, username, place, is_encrypted) VALUES (:password, :username, :place, :encrypted);",
+            &[(":password", save_password.as_str()), (":username", username), (":place", place), (":encrypted", &(encrypt as usize).to_string())][..], false)
+        }
+
+        pub fn delete_password(&self, place: &str) {
+            self.execute_sql(&("DELETE FROM passwords WHERE place = :place;"), (":place", place), false)
+        }
+
+        pub fn unpack_passwords(&self, packed_passwords: Vec<HashMap<String, String>>) -> Vec<Password> {
+            let mut unpacked_passwords = Vec::new();
+
+            for packed_password in packed_passwords.iter() {
+                unpacked_passwords.push(Password {
+                    password: packed_password.get("password").expect("Missing value for `password`.").clone(),
+                    place: packed_password.get("place").expect("Missing value for `place`.").clone(),
+                    username: packed_password.get("username").expect("Missing value for `username`.").clone(),
+                        encrypted: &(packed_password.get("is_encrypted").expect("Missing value for `is_encrypted`.").clone()) == "1",
+                })
+            }
+
+            unpacked_passwords
+        }
+
+        pub fn create_new_save_file(&self, new_key: &str) {
+            if !self.save_file_exists() {
+            match self.create_save_file() {
+                Ok(_) => (),
+                Err(_) => {
+                    println!("Error creating save file.");
+                    exit(1);
+                }
+            }
+            self.save_new_key(new_key.to_string());
+        }
+        else {
+            println!("Save file and key already exists. Cannot regenerate.");
+        }
+        }
+
+        pub fn generate_password(&self, length: usize, include_uppercase: bool, include_digits: bool, include_special: bool) -> String {
             let lowercase_chars = "abcdefghijklmnopqrstuvwxyz";
             let digit_chars = "0123456789";
-            let special_chars = "!@#$%^&*()-_=+[]{};:,.<>/?";
+            let special_chars = "!@#$%^&*()-_=+[]{}<>/?";
 
             let mut char_set = String::new();
 
@@ -131,102 +184,70 @@ pub mod password_manager {
             if include_digits { char_set.push_str(digit_chars); }
             if include_special { char_set.push_str(special_chars); }
 
+            let mut result = String::new();
+
             for _ in 0..length {
                 let next_char: char = char_set.chars().choose(&mut rand::thread_rng())
                     .expect("Could not generate password (Error Rand Select). If this issue persists, please create a github issue at https://github.com/Alichu2/password-manager-cli");
 
-                generated_password.push_str(next_char.to_string().as_str());
+                result.push_str(next_char.to_string().as_str());
             }
 
-            generated_password
+            result
         }
 
-        pub fn save_new_key(&self, key: String) {
-            let encrypted_sample_str = self.encrypt(self.sample_str_ref, &key);
+        pub fn get_all_passwords(&self) -> Vec<Password> {
+            let result = self.read_from_sql("SELECT * FROM passwords;", ("", ""),
+                                            vec!["password", "place", "username", "is_encrypted"], true);
 
-            match self.execute_sql(&("INSERT INTO config (name, value) VALUES ('verification_str', '".to_string() + &encrypted_sample_str + "');")) {
-                Ok(_) => println!("Key saved."),
-                Err(_) => println!("An issue occurred while trying to save your key.")
-            } // Needs sql command added to write encrypted value
+            self.unpack_passwords(result)
         }
 
-        pub fn save_password(&self, password: &str, username: &str, place: &str, encrypted: bool) -> Result<(), ()> {
-            self.execute_sql(&("INSERT INTO passwords (password, username, place, is_encrypted) VALUES ('".to_string() + password.trim() + "', '" + username.trim() + "', '" + place.trim() + "', " + &(encrypted as usize).to_string() + ");"))
-        }
+        pub fn get_password(&self, place: &str) -> Vec<Password> {
+            let packed_passwords = self.read_from_sql("SELECT * FROM passwords WHERE place = :place;", (":place", place),
+                                                      vec!["password", "username", "place", "is_encrypted"], false);
 
-        pub fn delete_password(&self, id: &str) -> Result<(), ()> {
-            self.execute_sql(&("DELETE FROM passwords WHERE id = ".to_string() + id + ";"))
-        }
-
-        pub fn get_passwords(&self, search_query: &str) -> Result<Vec<Password>, ()> {
-            match self.read_sql_data::<'static>(vec!["password", "username", "place", "id", "is_encrypted"], search_query) {
-                Ok(val) => {
-                    let mut unpacked_passwords = Vec::new();
-
-
-                    for packed_password in val.iter() {
-                        unpacked_passwords.push(Password {
-                            password: packed_password.get_or_default("password", String::from("none")),
-                            place: packed_password.get_or_default("place", String::from("none")),
-                            username: packed_password.get_or_default("username", String::from("none")),
-                            id: packed_password.get_or_default("id", String::from("0")).parse::<usize>().expect("Error parsing password."),
-                            encrypted: &(packed_password.get_or_default("is_encrypted", String::from("1"))) == "1",
-                        })
-                    }
-
-                    Ok(unpacked_passwords)
-                },
-                Err(_) => Err(())
-            }
+            self.unpack_passwords(packed_passwords)
         }
 
         pub fn create_save_file(&self) -> Result<(), ()> {
             match fs::create_dir_all(self.get_save_dir_path().display().to_string()) {
                 Ok(_) => {
-                    match self.execute_sql("CREATE TABLE passwords (id INTEGER PRIMARY KEY AUTOINCREMENT, password TEXT, username TEXT, place TEXT, is_encrypted NUMBER);
-CREATE TABLE config (name TEXT, value TEXT);") {
-                        Ok(_) => Ok(()),
-                        Err(_) => Err(())
-                    }
+                    self.execute_sql("CREATE TABLE passwords (password TEXT, username TEXT, place TEXT PRIMARY KEY, is_encrypted NUMBER);", ("", ""), true);
+                    self.execute_sql("CREATE TABLE config (name TEXT, value TEXT);", ("", ""), true);
+                    Ok(())
                 },
                 Err(_) => Err(())
             }
         }
 
         pub fn verify_key(&self, key: &str) -> bool {
-            match self.read_sql_data::<'static>(vec!["value"], "SELECT * FROM config WHERE name = 'verification_str';") {
-                Ok(result) => {
-                    let value = match result[0].get("value") {
-                        None => {
-                            println!("No sample string found to compare key to. Try again or report issue.");
-                            exit(1);
-                        },
-                        Some(val) => val
-                    };
-                    let decrypted_string = match self.decrypt(&value, &key) {
-                        Ok(val) => val,
-                        Err(_) => String::from(""),
-                    };
-
-                    decrypted_string == self.sample_str_ref
-                },
-                Err(_) => {
-                    println!("An error occurred when trying to read from the save file.");
+            let result = self.read_from_sql("SELECT * FROM config WHERE name = :key", (":key", CONF_ACCESS_CHECK), vec!["value"], false);
+            let value = match result[0].get("value") {
+                None => {
+                    println!("No sample string found to compare key to. Try again or report issue.");
                     exit(1);
-                }
-            }
+                },
+                Some(val) => val
+            };
+            let decrypted_string = match self.decrypt(&value, &key) {
+                Ok(val) => val,
+                Err(_) => String::from(""),
+            };
+
+            decrypted_string == self.access_check_plain
         }
 
-        pub fn encrypt(&self, string: &str, key: &str) -> String {
+        pub fn encrypt(&self, plaintext: &str, key: &str) -> String {
             let mc = new_magic_crypt!(key, 256);
 
-            mc.encrypt_str_to_base64(string)
+            mc.encrypt_str_to_base64(plaintext)
         }
 
-        pub fn decrypt(&self, base64: &str, key: &str) -> Result<String, ()> {
+        pub fn decrypt(&self, ciphertext: &str, key: &str) -> Result<String, ()> {
             let mc = new_magic_crypt!(key, 256);
 
-            match mc.decrypt_base64_to_string(base64) {
+            match mc.decrypt_base64_to_string(ciphertext) {
                 Ok(result) => Ok(result),
                 Err(_) => Err(())
             }
