@@ -1,6 +1,8 @@
 mod interface;
 
 use std::env;
+use std::path::PathBuf;
+use std::process::exit;
 
 use cli::cli::CLI;
 use interface::PasswordManagerInterface;
@@ -17,43 +19,43 @@ fn main() {
         println!("password-manager-cli Version: {}\nCopyright (c) 2023 Aliyu Nauke", env!("CARGO_PKG_VERSION"));
     }
     else if cli.contains_flag("new-key") {
-        let new_key = cli.get_password("Please input an access key. This will be used to encrypt and decrypt passwords. Keys are never stored: ");
+        let new_key = cli.prompt_password("Please input an access key. This will be used to encrypt and decrypt passwords. Keys are never stored: ");
 
-        if new_key == cli.get_password("Confirm key: ") {
-            interface.create_save_file(&new_key);
+        if new_key == cli.prompt_password("Confirm key: ") {
+            interface.pw_core.create_new_save_file(&new_key);
         }
     }
-    else if !interface.save_file_exists() {
+    else if !interface.pw_core.save_file_exists() {
         println!("Please configure a key. Use `--new-key` or `--help` for more information.");
     }
     else {
-        match cli.get_command() {
+        let command = match cli.get_command() {
+            Some(val) => val.as_str(),
+            None => exit(1)
+        };
+
+        // TODO: Smarten errors. Possible loop until value entered.
+        match command {
             "generate" => {
                 let save = cli.contains_flag("save");
-                let length = match cli.get_param("l").parse() {
-                    Ok(val) => val,
-                    Err(_) => 6
+                let length = match cli.get_option_value("-l") {
+                    Some(val) => match val.parse() {
+                        Ok(val) => val,
+                        Err(_) => 6,
+                    }
+                    None => 6
                 };
+                let generated_password = interface.pw_core.generate_password(length, !cli.contains_flag("no-upper"), !cli.contains_flag("no-digits"), !cli.contains_flag("no-special"));
 
                 if save {
                     interface.generate_and_save(
-                        !cli.contains_flag("no-special"),
-                        !cli.contains_flag("no-upper"),
-                        !cli.contains_flag("no-digits"),
-                        length,
-                        cli.read_required("u", "Username for the password:"),
-                        cli.read_required("p", "Name for the password:"),
+                        generated_password,
+                        cli.prompt_missing_flag("-u", "Username for the password:").unwrap(),
+                        cli.prompt_missing_flag("-p", "Name for the password:").unwrap(),
                         !cli.contains_flag("no-encrypt")
                     );
                 }
                 else {
-                    let generated_password = interface.generate_password(
-                        !cli.contains_flag("no-special"),
-                        !cli.contains_flag("no-upper"),
-                        !cli.contains_flag("no-digits"),
-                        length,
-                    );
-
                     println!("generated password = {}", generated_password);
                 }
             },
@@ -62,25 +64,25 @@ fn main() {
                     interface.load_all_passwords()
                 }
                 else {
-                    interface.load_password(&cli.read_required("p", "Password Name:"));
+                    interface.load_password(&cli.prompt_missing_flag("-p", "Password Name:").unwrap());
                 }
             },
             "add" => {
                 interface.add_password(
-                    &cli.ask("New password: "),
-                    &cli.read_required("u", "Password username: "),
-                    &cli.read_required("p", "Password name: "),
+                    &cli.prompt("New password: ").unwrap(),
+                    &cli.prompt_missing_flag("-u", "Password username: ").unwrap(),
+                    &cli.prompt_missing_flag("-p", "Password name: ").unwrap(),
                     !cli.contains_flag("no-encrypt"),
                 );
             },
             "delete" => {
-                let place = cli.read_required("p", "Name of password to be deleted:");
+                let place = cli.prompt_missing_flag("-p", "Name of password to be deleted:").unwrap();
 
                 interface.delete_password(place);
             },
             "backup" => {
                 interface.create_backup(
-                    cli.get_current_dir(),
+                    env::current_dir().unwrap(),
                     !cli.contains_flag("no-encrypt")
                 );
 
@@ -88,7 +90,7 @@ fn main() {
             },
             "restore" => {
                 interface.restore_backup(
-                    cli.get_current_dir().join(cli.get_command_index(1, "Please enter file path.")),
+                    PathBuf::from(cli.get_argument(1).unwrap()),
                     !cli.contains_flag("no-encrypt")
                 );
             },
