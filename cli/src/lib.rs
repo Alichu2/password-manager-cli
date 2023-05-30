@@ -2,7 +2,6 @@
 
 pub mod cli {
     use std::io::stdin;
-    use std::process::exit;
     use rpassword;
 
     pub struct  CLI {
@@ -52,20 +51,30 @@ pub mod cli {
             }
         }
 
-        pub fn prompt_password(&self, prompt: &str) -> String {
+        pub fn prompt_password(&self, prompt: &str) -> Option<String> {
             match rpassword::prompt_password(prompt) {
                 Ok(val) => {
                     if val.trim().is_empty() {
-                        println!("No password entered. Try Again!");
-                        exit(1);
+                        return None;
                     }
-                    val.trim().to_string()
+                    Some(val.trim().to_string())
                 },
-                Err(_) => {
-                    println!("Error reading password");
-                    exit(1);
-                }
+                Err(_) => None
             }
+        }
+
+        pub fn prompt_loop_password(&self, prompt: &str) -> String {
+            let mut password = String::new();
+
+            while password.is_empty() {
+                password = match self.prompt_password(prompt) {
+                    None => {
+                        String::new()
+                    },
+                    Some(val) => val
+                };
+            }
+            password
         }
 
         pub fn prompt(&self, question: &str) -> Option<String> {
@@ -82,6 +91,20 @@ pub mod cli {
                 Some(val) => Some(val.clone()),
                 None => self.prompt(question),
             }
+        }
+
+        pub fn prompt_loop_missing_flag(&self, question: &str, flag: &str) -> String {
+            let mut answer = String::new();
+
+            while answer.is_empty() {
+                answer = match self.prompt_missing_flag(question, flag) {
+                    None => {
+                        String::new()
+                    },
+                    Some(val) => val
+                };
+            }
+            answer
         }
 
         pub fn help(&self) {
