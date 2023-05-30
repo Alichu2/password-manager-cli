@@ -19,13 +19,12 @@ impl PasswordManagerInterface {
         }
     }
 
-    fn print_passwords(&self, passwords: &Vec<Password>, key: String) {
-        for (index, password) in passwords.iter().enumerate() {
-            println!("\n{}:", index);
+    fn print_passwords(&self, password: &Password, key: &Option<String>, index: usize) {
+        println!("\n{}:", index);
             println!("  place = {}", &password.place);
             println!("  username = {}", &password.username);
             if password.encrypted {
-                println!("  password = {}", match self.pw_core.decrypt(&password.password, key.clone().as_str()) {
+                println!("  password = {}", match self.pw_core.decrypt(&password.password, key.clone().unwrap().as_str()) {
                     Ok(val) => val,
                     Err(_) => {
                         println!("Problem decrypting your password. Try again or report an issue.");
@@ -36,46 +35,35 @@ impl PasswordManagerInterface {
             else {
                 println!("  password = {}", &password.password);
             }
-        }
     }
 
     fn password_printing_manager(&self, passwords: &Vec<Password>, key: Option<String>) {
-        let mut requires_key: bool = false;
-        let number_passwords = passwords.len();
-
-        if number_passwords == 0 {
+        if passwords.len() == 0 {
             println!("No passwords have been found.");
         }
         else {
-            for password in passwords.iter() {
-                if password.encrypted {
-                    requires_key = true;
-                }
-            }
+            let requires_key: bool = passwords.iter().any(|password| password.encrypted);
+            let new_key: Option<String>;
 
-            let new_key: String;
-            if requires_key {
-                if &key == &None {
-                    new_key = self.get_key();
-                }
-                else {
-                    new_key = key.unwrap();
-                }
+            if requires_key && &key == &None {
+                new_key = Some(self.get_key());
             }
             else {
-                new_key = String::new();
+                new_key = None;
             }
 
-            self.print_passwords(passwords, new_key);
-            println!("\n{} password(s) in total.", number_passwords);
+            for (index, password) in passwords.iter().enumerate() {
+                self.print_passwords(password, &new_key, index);
+            }
+            println!("\n{} password(s) in total.", passwords.len());
         }
     }
 
     fn get_key(&self) -> String {
-        let mut key = String::new();
+        let mut key = self.cli.prompt_loop_password("Access key: ");
 
-        while key.is_empty() {
-            key = self.cli.prompt_password("Access Key: ");
+        while !self.pw_core.verify_key(&key) {
+            key = self.cli.prompt_loop_password("Incorrect, try again: ");
         }
         key
     }
@@ -93,7 +81,7 @@ impl PasswordManagerInterface {
     }
 
 
-    pub fn generate_and_save(&self, generated_password: String, uname: String, place: String, encrypt: bool) {
+    pub fn save_password(&self, generated_password: String, uname: String, place: String, encrypt: bool) {
         if encrypt {
             self.pw_core.save_password(&generated_password, &uname, &place, encrypt, Some(&self.get_key()));
         }
@@ -166,8 +154,8 @@ impl PasswordManagerInterface {
 
         let file_contents;
         if encrypt {
-            let file_key = self.cli.prompt_password("File key (used to encrypt and later decrypt file): ");
-            if file_key == self.cli.prompt_password("Confirm file key: ") {
+            let file_key = self.cli.prompt_loop_password("File key (used to encrypt and later decrypt file): ");
+            if file_key == self.cli.prompt_loop_password("Confirm file key: ") {
                 file_contents = self.pw_core.encrypt(&file_string, &file_key);
             }
             else {
@@ -200,7 +188,7 @@ impl PasswordManagerInterface {
         let processing_string;
 
         if !file_contents.contains(",") {
-            processing_string = match self.pw_core.decrypt(&file_contents, &self.cli.prompt_password("File key: ")) {
+            processing_string = match self.pw_core.decrypt(&file_contents, &self.cli.prompt_loop_password("File key: ")) {
                 Ok(val) => val.trim().to_string(),
                 Err(_) => {
                     println!("Error decrypting file.");
