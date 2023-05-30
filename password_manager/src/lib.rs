@@ -7,6 +7,7 @@ pub mod password_manager {
     use std::process::exit;
     use magic_crypt::{new_magic_crypt, MagicCryptTrait};
     use sqlite::Bindable;
+    use bcrypt::{hash, verify};
 
     #[allow(unused_imports)]
     use dirs::home_dir;
@@ -18,27 +19,14 @@ pub mod password_manager {
         pub encrypted: bool,
     }
 
-    /*
-    >> How does `access_check_plain` work? <<
-    When a save file is created with --new-key , the key that the user enters is not saved. But to prevent the user accidentally saving
-    a password with an incorrect key or to prevent malicious intent, a string (access_check_plain) is encrypted with the key when the
-    save file is created. Whenever the user wants to perform an action, the saved ciphertext gets decrypted with the user entered key
-    and compared with access_check_plain to make sure it is the correct key.
-     */
+    static CONF_ACCESS_CHECK: &str = "access_key_hash";
+    static HASH_COST: u32 = 8;
 
-    // TODO: Check that having plaintext and ciphertext makes it easy to figure out the key.
-
-    static CONF_ACCESS_CHECK: &str = "access_check_cipher";
-
-    pub struct PasswordManager {
-        access_check_plain: &'static str,
-    }
+    pub struct PasswordManager { }
 
     impl PasswordManager {
         pub fn new() -> Self {
-            Self {
-                access_check_plain: "test string to encrypt",
-            }
+            Self { }
         }
 
         #[cfg(not(debug_assertions))]
@@ -116,10 +104,10 @@ pub mod password_manager {
         }
 
         pub fn save_new_key(&self, key: String) {
-            let access_check_cipher = self.encrypt(self.access_check_plain, &key);
+            let hashed_key = hash(&key, HASH_COST).unwrap();
 
             self.execute_sql("INSERT INTO config (name, value) VALUES (:key, :cipher);",
-                             &[(":key", CONF_ACCESS_CHECK), (":cipher", &access_check_cipher)][..], false);
+                             &[(":key", CONF_ACCESS_CHECK), (":cipher", &hashed_key)][..], false);
         }
 
         pub fn save_password(&self, password: &str, username: &str, place: &str, encrypt: bool, key: Option<&str>) {
@@ -230,12 +218,8 @@ pub mod password_manager {
                 },
                 Some(val) => val
             };
-            let decrypted_string = match self.decrypt(&value, &key) {
-                Ok(val) => val,
-                Err(_) => String::from(""),
-            };
 
-            decrypted_string == self.access_check_plain
+            verify(key, value).unwrap()
         }
 
         pub fn encrypt(&self, plaintext: &str, key: &str) -> String {
