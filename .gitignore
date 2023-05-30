@@ -15,3 +15,7 @@
 
 # Files created by the code when debugging
 .password-manager/
+
+# Backup files that may be generated during testing.
+password_backup.txt
+password_backup.csv
