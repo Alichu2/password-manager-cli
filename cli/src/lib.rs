@@ -136,7 +136,7 @@ Arguments:
     -p (name)      Password's name.
     -l (length)    Length of the generated password. Defaults to 6 characters.
 
-Visit <https://github.com/Alichu2/password-manager-cli> for more information.");
+Visit git https://github.com/Alichu2/password-manager-cli for more information.");
         }
     }
 }
