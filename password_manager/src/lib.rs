@@ -64,8 +64,8 @@ pub mod password_manager {
         fn get_sqlite_connection(&self) -> sqlite::Connection {
             match sqlite::open(&self.get_save_file_path_str()) {
                 Ok(val) => val,
-                Err(_) => {
-                    println!("Failed to get connection. Is the save file ok?");
+                Err(err) => {
+                    println!("Failed to get connection. {}", err);
                     exit(1);
                 }
             }
@@ -176,7 +176,7 @@ pub mod password_manager {
 
             for _ in 0..length {
                 let next_char: char = char_set.chars().choose(&mut rand::thread_rng())
-                    .expect("Could not generate password (Error Rand Select). If this issue persists, please create a github issue at https://github.com/Alichu2/password-manager-cli");
+                    .expect("Could not generate password (Error Rand Select).");
 
                 result.push_str(next_char.to_string().as_str());
             }
@@ -213,7 +213,7 @@ pub mod password_manager {
             let result = self.read_from_sql("SELECT * FROM config WHERE name = :key", (":key", CONF_ACCESS_CHECK), vec!["value"], false);
             let value = match result[0].get("value") {
                 None => {
-                    println!("No sample string found to compare key to. Try again or report issue.");
+                    println!("No sample string found to compare key to.");
                     exit(1);
                 },
                 Some(val) => val
