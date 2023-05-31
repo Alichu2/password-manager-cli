@@ -19,7 +19,7 @@ impl PasswordManagerInterface {
         }
     }
 
-    fn print_passwords(&self, password: &Password, key: &Option<String>, index: usize) {
+    fn print_password(&self, password: &Password, key: &Option<String>, index: usize) {
         println!("\n{}:", index);
             println!("  place = {}", &password.place);
             println!("  username = {}", &password.username);
@@ -53,7 +53,7 @@ impl PasswordManagerInterface {
             }
 
             for (index, password) in passwords.iter().enumerate() {
-                self.print_passwords(password, &new_key, index);
+                self.print_password(password, &new_key, index);
             }
             println!("\n{} password(s) in total.", passwords.len());
         }
