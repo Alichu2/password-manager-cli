@@ -145,18 +145,18 @@ pub mod password_manager {
 
         pub fn create_new_save_file(&self, new_key: &str) {
             if !self.save_file_exists() {
-            match self.create_save_file() {
-                Ok(_) => (),
-                Err(_) => {
-                    println!("Error creating save file.");
-                    exit(1);
+                match self.create_save_file() {
+                    Ok(_) => (),
+                    Err(_) => {
+                        println!("Error creating save file.");
+                        exit(1);
+                    }
                 }
+                self.save_new_key(new_key.to_string());
             }
-            self.save_new_key(new_key.to_string());
-        }
-        else {
-            println!("Save file and key already exists. Cannot regenerate.");
-        }
+            else {
+                println!("Save file and key already exists. Cannot regenerate.");
+            }
         }
 
         pub fn generate_password(&self, length: usize, include_uppercase: bool, include_digits: bool, include_special: bool) -> String {
