@@ -121,6 +121,7 @@ impl PasswordManagerInterface {
         println!("\nSaved Password:\n  password = {}\n  username = {}\n  place = {}", password, username, place);
     }
 
+    // TODO: Add csv column headers that also get removed when restored.
     pub fn create_backup(&self, path: PathBuf, encrypt: bool) {
         let key = self.get_key();
         let mut file_string: String = String::new();
@@ -146,8 +147,8 @@ impl PasswordManagerInterface {
 
         let mut file = match File::create(path.join(if encrypt { "password_backup.txt" } else { "password_backup.csv" })) {
             Ok(val) => val,
-            Err(_) => {
-                println!("Error creating file.");
+            Err(err) => {
+                println!("Error creating file.\n{}", err);
                 exit(1);
             }
         };
@@ -169,8 +170,8 @@ impl PasswordManagerInterface {
 
         match file.write_all((&file_contents).as_bytes()) {
             Ok(_) => (),
-            Err(_) => {
-                println!("Error writing to file");
+            Err(err) => {
+                println!("Error writing to file.\n{}", err);
                 exit(1);
             }
         }
@@ -180,8 +181,8 @@ impl PasswordManagerInterface {
         let key = self.get_key();
         let file_contents: String = match fs::read_to_string(file) {
             Ok(val) => val,
-            Err(_) => {
-                println!("Error reading backup file.");
+            Err(err) => {
+                println!("Error reading backup file.\n{}", err);
                 exit(1);
             }
         };

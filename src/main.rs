@@ -34,6 +34,7 @@ fn main() {
             None => exit(1)
         };
 
+        // TODO: Go over all errors in project to see if can be improved.
         match command {
             "generate" => {
                 let save = cli.contains_flag("save");
@@ -58,6 +59,7 @@ fn main() {
                     println!("generated password = {}", generated_password);
                 }
             },
+            // TODO: Ask user before replacing password.
             "load" => {
                 if cli.contains_flag("all") {
                     password_manager.load_all_passwords()
