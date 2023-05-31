@@ -114,29 +114,27 @@ pub mod cli {
 This is the password-manager-cli help guide.
 
 Commands:
-    load           Find a previously generated password with a place name, url or ID.
+    load           Find a previously generated password with a place name.
     generate       Generate a password.
-    backup         Create a backup of the saved passwords to a file. The contents of the file can be not encrypted with --no-encrypt.
-    restore        Load a backup and save all the passwords in the backup file. The passwords can be saved without encryption with --no-encrypt.
-    delete         Delete a password with a specified place. If multiple are found, it will prompt to specify the one that should be deleted.
-    add            Add a custom password to save that isn't generated.
+    backup         Create a backup of the saved passwords to a file. The contents of the file can be saved as a csv file with --no-encrypt.
+    restore        Load a backup and save all the passwords in the backup file. The passwords can be saved without encryption with --no-encrypt. Passwords with the same place name will be replaced.
+    delete         Delete a password with a specified name.
+    add            Save a custom password.
 
 Arguments:
-    --save         Save the generated password. The password will be encrypted.
+    --save         Save the generated password.
     --no-special   Exclude spacial characters in the generated password.
     --no-upper     Exclude uppercase characters in the generated password.
     --no-digits    Exclude digits in the generated password.
-    --no-encrypt   Won't encrypt your password when saving. It will still prompt you for the access key, but input will be ignored.
+    --no-encrypt   Won't encrypt your password when saving.
     --help         Manual (what you are currently reading).
-    --new-key      Enter your key. Can only be done once so remember it as it is necessary to decrypt passwords. The key will not be saved in any form.
-    --all          Selects all passwords for loading and displaying.
-    --version      Password-Manager's version.
+    --new-key      Enter your key. Can only be done once so remember it as it is necessary to decrypt passwords.
+    --all          Selects all passwords for loading.
+    --version      password-manager-cli's version.
 
     -u (username)  Password's username.
     -p (name)      Password's name.
     -l (length)    Length of the generated password. Defaults to 6 characters.
-
-If you want to delete all the passwords, you can delete the file data.sqlite in the folder ~/.password-manager/.
 
 Visit <https://github.com/Alichu2/password-manager-cli> for more information.");
         }
