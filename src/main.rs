@@ -1,228 +1,101 @@
+mod interface;
+
 use std::env;
-use rpassword;
-use std::fs::File;
-use std::io::prelude::*;
+use std::path::PathBuf;
+use std::process::exit;
 
 use cli::cli::CLI;
-
-mod password;
-
-
-fn print_passwords(passwords: Vec<[String; 5]>) {
-    let num_passwords = passwords.len();
-    let key = password::verify_key(rpassword::prompt_password("\nEnter your access key: ").unwrap().trim().to_string());
-
-    for password_index in 0..num_passwords {
-        println!("\n{}:", password_index);
-        println!("  username = {}", passwords[password_index][1]);
-        println!("  place = {}", passwords[password_index][2]);
-        if passwords[password_index][4] == "1" {
-            println!("  password = {}", password::decrypt(&passwords[password_index][0], &key));
-        }
-        else {
-            println!("  password = {}", passwords[password_index][0]);
-        }
-    }
-}
+use interface::PasswordManagerInterface;
 
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-
-    let cli = CLI { arguments: args };
+    let cli: CLI = CLI::from(env::args().collect());
+    let password_manager: PasswordManagerInterface = PasswordManagerInterface::new();
 
     if cli.contains_flag("help") {
         cli.help();
     }
     else if cli.contains_flag("version") {
-        println!("Password-Manager Version: {}", env!("CARGO_PKG_VERSION"));
+        println!("password-manager-cli Version: {}\nCopyright (c) 2023 Aliyu Nauke", env!("CARGO_PKG_VERSION"));
     }
     else if cli.contains_flag("new-key") {
-        if password::save_file_exists() {
-            println!("Access key already exists. Cannot replace.");
-        }
-        else {
-            let new_key = rpassword::prompt_password("Please input an access key. This will be used to encrypt and decrypt passwords: ").unwrap().trim().to_string();
+        let new_key = cli.prompt_loop_password("Please input an access key. This will be used to encrypt and decrypt passwords: ");
 
-            if new_key.is_empty() {
-                println!("Not a valid key.");
-            }
-            else if new_key == rpassword::prompt_password("Re-enter: ").unwrap().trim().to_string() {
-                password::create_database_tables();
-                
-                password::save_key(new_key);
-
-                println!("Key saved.");
-            }
+        if new_key == cli.prompt_loop_password("Confirm key: ") {
+            password_manager.pw_core.create_new_save_file(&new_key);
         }
     }
-    else if !password::save_file_exists() {
-        println!("You need to configure an encryption key. Use --new-key or --help for more information.");
+    else if !password_manager.pw_core.save_file_exists() {
+        println!("Please configure a key. Use `--new-key` or `--help` for more information.");
     }
     else {
-        match cli.get_command() {
+        let command = match cli.get_command() {
+            Some(val) => val.as_str(),
+            None => exit(1)
+        };
+
+        // TODO: Go over all errors in project to see if can be improved.
+        match command {
             "generate" => {
-                let length = match cli.get_param("l").parse() {
-                    Ok(num_chars) => num_chars,
-                    Err(_) => 6
+                let save = cli.contains_flag("save");
+                let length = match cli.get_option_value("-l") {
+                    Some(val) => match val.parse() {
+                        Ok(val) => val,
+                        Err(_) => 6,
+                    }
+                    None => 6
                 };
-    
-                let password = password::generate_password(
-                    length,
-                    !cli.contains_flag("no-upper"),
-                    !cli.contains_flag("no-digits"),
-                    !cli.contains_flag("no-special"),
-                );
+                let generated_password = password_manager.pw_core.generate_password(length, !cli.contains_flag("no-upper"), !cli.contains_flag("no-digits"), !cli.contains_flag("no-special"));
 
-                if cli.contains_flag("save") {
-                    let place = cli.read_required("p", "\nEnter an place name, url or ID for the password:");
-                    let username = cli.read_required("u", "\nEnter an username for the password:");
-
-                    if !cli.contains_flag("no-encrypt") {
-                        let key = password::verify_key(rpassword::prompt_password("\nEnter your access key: ").unwrap().trim().to_string());
-                        let encrypted_pass = password::encrypt(&password, &key);
-                        password::save_password(&encrypted_pass, &username, &place, true);
-                    }
-                    else {
-                        password::save_password(&password, &username, &place, false);
-                    }
-
-                    println!("\nYour new password and username for {}:\nPassword: {}\nUsername: {}", place.trim(), password, username.trim());
+                if save {
+                    password_manager.save_password(
+                        generated_password,
+                        cli.prompt_loop_missing_flag("-u", "Username for the password:"),
+                        cli.prompt_loop_missing_flag("-p", "Name for the password:"),
+                        !cli.contains_flag("no-encrypt")
+                    );
                 }
                 else {
-                    println!("Generated Password: {}", password);
+                    println!("generated password = {}", generated_password);
                 }
             },
+            // TODO: Ask user before replacing password.
             "load" => {
-                let password_data;
                 if cli.contains_flag("all") {
-                    password_data = password::get_all_passwords();
+                    password_manager.load_all_passwords()
                 }
                 else {
-                    let place = cli.read_required("p", "\nEnter the place name, url or ID for the password:");
-                    password_data = password::find_password(&place);
+                    password_manager.load_password(&cli.prompt_loop_missing_flag("-p", "Password Name:"));
                 }
-
-                println!("{} password(s) found.", password_data.len());
-
-                if !(password_data.len() == 0) {
-                    print_passwords(password_data);
-                }
+            },
+            "add" => {
+                password_manager.add_password(
+                    &cli.prompt("New password: ").unwrap(),
+                    &cli.prompt_loop_missing_flag("-u", "Password username:"),
+                    &cli.prompt_loop_missing_flag("-p", "Password name:"),
+                    !cli.contains_flag("no-encrypt"),
+                );
             },
             "delete" => {
-                let place = cli.read_required("p", "\nEnter the place name, url or ID for the password:");
-                
-                let password_data = password::find_password(&place);
-                
-                if password_data.len() > 1 {
-                    println!("Multiple passwords have been found with the same place. Please select the on you want to delete.");
+                let place = cli.prompt_missing_flag("-p", "Name of password to be deleted:").unwrap();
 
-                    let mut ids: Vec<usize> = Vec::new();
-
-                    for password in password_data.iter() {
-                        ids.push(password[3].parse().unwrap());
-                    }
-                    
-                    print_passwords(password_data);
-                    
-                    let eliminate = cli.ask("\nEnter the password number:").trim().to_string();
-
-                    if cli.ask("\nAre you sure you want to delete? [y/n]:").trim() == "y" {
-                        password::delete_password(&ids[eliminate.parse::<usize>().unwrap()].to_string());
-                        println!("Deleted password.");
-                    }
-                }
-                else if password_data.len() > 0 {
-                    password::verify_key(rpassword::prompt_password("\nEnter your access key: ").unwrap().trim().to_string());
-                    if cli.ask("\nAre you sure you want to delete? [y/n]:").trim() == "y" {
-                        password::delete_password(&password_data[0][3]);
-                        println!("Deleted password.");
-                    }
-                }
-                else {
-                    println!("No passwords found under that place name.");
-                }
-            },
-            // Passwords with this method have newline at the end. FIX
-            "add" => {
-                let place = cli.read_required("p", "\nEnter the place name, url or ID for the password:");
-                let password = cli.ask("\nEnter the password:");
-                let username = cli.read_required("u", "\nEnter an username for the password:");
-                let encrypt = !cli.contains_flag("no-encrypt");
-
-                if encrypt {
-                    let encrypted = password::encrypt(&password, &password::verify_key(rpassword::prompt_password("\nEnter your access key: ").unwrap().trim().to_string()));
-                    password::save_password(&encrypted, &username, &place, true);
-                }
-                else {
-                    password::save_password(&password, &username, &place, false);
-                }
-
-                println!("\nYour new password and username for {}:\nPassword: {}\nUsername: {}", place.trim(), password.trim(), username.trim());
+                password_manager.delete_password(place);
             },
             "backup" => {
-                let key = password::verify_key(rpassword::prompt_password("\nEnter your access key: ").unwrap().trim().to_string());
-                let password_data = password::get_all_passwords();
-                let mut file_str = String::new();
-                
-                for password in password_data.iter() {
-                    file_str += &(password::decrypt(&password[0], &key) + "|" + &password[1] + "|" + &password[2] + "\n");
-                }
-                if !cli.contains_flag("no-encrypt") {
-                    let file_key = rpassword::prompt_password("\nCreate file key (needed later to restore): ").unwrap().trim().to_string();
-                    if file_key == rpassword::prompt_password("Re-enter: ").unwrap().trim().to_string() {
-                        file_str = password::encrypt(&file_str, &file_key);
-                        file_str += "\nUse password-manager CLI with the file key.\n";
-                    }
-                    else {
-                        panic!("Keys don't match.");
-                    }
-                }
-                let mut backup_file = File::create(env::current_dir().unwrap().display().to_string() + "/password_backup.txt").unwrap();
-                backup_file.write_all(file_str.as_bytes()).unwrap();
+                password_manager.create_backup(
+                    env::current_dir().unwrap(),
+                    !cli.contains_flag("no-encrypt")
+                );
+
+                println!("Backup created");
             },
             "restore" => {
-                let backup_file_loc = env::current_dir().unwrap().display().to_string() + "/" + &cli.read_required("f", "Backup file location:");
-                let mut backup_file = File::open(&backup_file_loc).unwrap();
-                let mut contents = String::new();
-                
-                backup_file.read_to_string(&mut contents).unwrap();
-                
-                if contents.contains("\nUse password-manager CLI with the file key.\n") {
-                    contents = contents.replace("\nUse password-manager CLI with the file key.\n", "");
-                    let file_key = rpassword::prompt_password("File Key: ").unwrap().trim().to_string();
-                    
-                    contents = password::decrypt(&contents, &file_key);
-                }
-                
-                let mut new_passwords: Vec<Vec<String>> = Vec::new();
-                
-                for row in contents.split("\n") {
-                    if !row.is_empty() {
-                        new_passwords.push(row.to_string().split("|").map(String::from).collect());
-                    }
-                }
-                
-                let key = password::verify_key(rpassword::prompt_password("\nEnter your access key: ").unwrap().trim().to_string());
-                
-                if cli.contains_flag("no-encrypt") {
-                    for password in new_passwords.iter() {
-                        password::save_password(&password[1], &password[1], &password[2], false);
-                    }
-                }
-                else {
-                    for password in new_passwords.iter() {
-                        let encrypted_pass = password::encrypt(&password[0], &key);
-                        password::save_password(&encrypted_pass, &password[1], &password[2], true);
-                    }
-                }
-
-                println!("New passwords added.");
+                password_manager.restore_backup(
+                    PathBuf::from(cli.get_argument(1).unwrap()),
+                    !cli.contains_flag("no-encrypt")
+                );
             },
-            "locate" => {
-                println!("{}", env::current_dir().unwrap().display());
-            },
-            _ => { println!("Please give valid command (use --help for more info)."); }
+            invalid => println!("`{}` is not a recognized command. Please enter a valid command. Use `--help` for more information.", invalid)
         }
-    }    
+    }
 }
