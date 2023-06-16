@@ -45,8 +45,13 @@ impl PasswordManagerInterface {
             let requires_key: bool = passwords.iter().any(|password| password.encrypted);
             let new_key: Option<String>;
 
-            if requires_key && &key == &None {
-                new_key = Some(self.get_key());
+            if requires_key {
+                if &key == &None {
+                    new_key = Some(self.get_key());
+                }
+                else {
+                    new_key = key;
+                }
             }
             else {
                 new_key = None;
