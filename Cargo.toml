@@ -9,5 +9,6 @@ edition = "2021"
 rand = "0.8.5"
 sqlite = "0.30.4"
 magic-crypt = "3.1.12"
-cli = { path = "cli" }
-password_manager = { path = "password_manager" }
+dirs = "5.0.1"
+rpassword = "7.2"
+bcrypt = "0.14.0"

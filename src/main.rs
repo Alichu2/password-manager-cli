@@ -1,12 +1,9 @@
-mod interface;
-
 use std::env;
 use std::path::PathBuf;
 use std::process::exit;
 
-use cli::cli::CLI;
-use interface::PasswordManagerInterface;
-
+use password_manager::cli::cli::CLI;
+use password_manager::interface::PasswordManagerInterface;
 
 fn main() {
     let cli: CLI = CLI::from(env::args().collect());
@@ -14,24 +11,25 @@ fn main() {
 
     if cli.contains_flag("help") {
         cli.help();
-    }
-    else if cli.contains_flag("version") {
-        println!("password-manager-cli Version: {}\nCopyright (c) 2023 Aliyu Nauke", env!("CARGO_PKG_VERSION"));
-    }
-    else if cli.contains_flag("new-key") {
-        let new_key = cli.prompt_loop_password("Please input an access key. This will be used to encrypt and decrypt passwords: ");
+    } else if cli.contains_flag("version") {
+        println!(
+            "password-manager-cli Version: {}\nCopyright (c) 2023 Aliyu Nauke",
+            env!("CARGO_PKG_VERSION")
+        );
+    } else if cli.contains_flag("new-key") {
+        let new_key = cli.prompt_loop_password(
+            "Please input an access key. This will be used to encrypt and decrypt passwords: ",
+        );
 
         if new_key == cli.prompt_loop_password("Confirm key: ") {
             password_manager.pw_core.create_new_save_file(&new_key);
         }
-    }
-    else if !password_manager.pw_core.save_file_exists() {
+    } else if !password_manager.pw_core.save_file_exists() {
         println!("Please configure a key. Use `--new-key` or `--help` for more information.");
-    }
-    else {
+    } else {
         let command = match cli.get_command() {
             Some(val) => val.as_str(),
-            None => exit(1)
+            None => exit(1),
         };
 
         // TODO: Go over all errors in project to see if can be improved.
