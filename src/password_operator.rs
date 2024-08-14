@@ -1,11 +1,16 @@
+use anyhow::{bail, Result};
 use rand::prelude::IteratorRandom;
+use sqlx::Executor;
 use std::fmt;
 
 #[allow(unused_imports)]
 use dirs::home_dir;
 
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
+use crate::database::get_sqlite_connection;
+use crate::security::encrypt;
 
+#[derive(sqlx::FromRow)]
 pub struct Password {
     pub password: Option<String>,
     pub username: String,
@@ -43,8 +48,14 @@ impl Password {
         }
     }
 
-    pub async fn from(_place: String) -> Self {
-        unimplemented!();
+    pub async fn from(place: String) -> Self {
+        let db_conn = get_sqlite_connection();
+
+        sqlx::query_as::<_, Self>("SELECT * FROM passwords WHERE place = ?;")
+            .bind(&place)
+            .fetch_one(&mut db_conn.await)
+            .await
+            .expect("Error reading password from database.")
     }
 
     pub async fn generate_and_attach_password(
@@ -137,8 +148,42 @@ impl Password {
         result
     }
 
-    pub fn delete(&self) {
-        unimplemented!();
+    pub async fn delete(&self) {
+        let mut db_conn = get_sqlite_connection().await;
+
+        db_conn
+            .execute(sqlx::query("DELETE FROM passwords WHERE place = ?;").bind(&self.place))
+            .await
+            .expect("Error deleting password.");
+    }
+
+    pub async fn save(&self, key: Option<String>) -> Result<()> {
+        if self.password.is_some() {
+            let mut db_conn = get_sqlite_connection().await;
+            let save_password: String;
+
+            if self.encrypted {
+                if key.is_some() {
+                    save_password = encrypt(&self.password.clone().unwrap(), &key.unwrap());
+                } else {
+                    bail!("Cannot generate a password without a key.");
+                }
+            } else {
+                save_password = self.password.clone().unwrap();
+            }
+
+            db_conn.execute(
+                sqlx::query("INSERT INTO passwords (place, password, username, encrypted) VALUES (?, ?, ?, ?);")
+                    .bind(&self.place)
+                    .bind(&save_password)
+                    .bind(&self.username)
+                    .bind(self.encrypted as i32))
+            .await.expect("Error saving password into databse");
+        } else {
+            bail!("Could not save password because no password exists.");
+        }
+
+        Ok(())
     }
 }
 
