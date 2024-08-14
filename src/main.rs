@@ -115,12 +115,14 @@ async fn main() {
                 if !no_encrypt {
                     let key = ask_key().await;
 
+                    println!("Generated Password:\n{}", new_password);
+
                     new_password.encrypt_password(&key).unwrap();
+                } else {
+                    println!("Generated Password:\n{}", new_password);
                 }
 
                 new_password.save().await.unwrap();
-
-                println!("Generated Password:\n{}", new_password);
             }
         }
         Commands::Load { place, all } => {
@@ -162,14 +164,16 @@ async fn main() {
             if !no_encrypt {
                 let key = ask_key().await;
 
+                println!("Saved password:\n{}", new_password);
+
                 new_password
                     .encrypt_password(&key)
                     .expect("Error encrypting password.");
+            } else {
+                println!("Saved password:\n{}", new_password);
             }
 
             new_password.save().await.expect("Error saving password.");
-
-            println!("Saved password:\n{}", new_password);
         }
         Commands::Delete { place, force } => {
             let password_in_question = Password::from(place).await;
