@@ -1,4 +1,10 @@
 use clap::{Parser, Subcommand};
+use password_manager::interface::{create_backup, restore_backup};
+use password_manager::password_operator::Password;
+use password_manager::security::verify_key;
+use rpassword::prompt_password;
+use std::io::stdin;
+use std::process::exit;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -73,97 +79,130 @@ enum Commands {
     },
 }
 
-fn main() {
+#[async_std::main]
+async fn main() {
     let cli = Cli::parse();
     println!("Currently working on version 2. It will be better and stronger.");
-    // let cli: CLI = CLI::from(env::args().collect());
-    // let password_manager: PasswordManagerInterface = PasswordManagerInterface::new();
 
-    // if cli.contains_flag("help") {
-    //     cli.help();
-    // } else if cli.contains_flag("version") {
-    //     println!(
-    //         "password-manager-cli Version: {}\nCopyright (c) 2023 Aliyu Nauke",
-    //         env!("CARGO_PKG_VERSION")
-    //     );
-    // } else if cli.contains_flag("new-key") {
-    //     let new_key = cli.prompt_loop_password(
-    //         "Please input an access key. This will be used to encrypt and decrypt passwords: ",
-    //     );
+    match cli.command {
+        Commands::Generate {
+            save,
+            length,
+            no_special,
+            no_uppercase,
+            no_numbers,
+            place,
+            username,
+            no_encrypt,
+        } => {
+            if !save {
+                let new_password =
+                    Password::generate_password(length, !no_special, !no_numbers, !no_uppercase);
+                println!("Generated password: {}", new_password);
+            } else {
+                let mut new_password = Password::new(username, place, None);
+                new_password
+                    .generate_and_attach_password(length, !no_special, !no_numbers, !no_uppercase)
+                    .await;
 
-    //     if new_key == cli.prompt_loop_password("Confirm key: ") {
-    //         password_manager.pw_core.create_new_save_file(&new_key);
-    //     }
-    // } else if !password_manager.pw_core.save_file_exists() {
-    //     println!("Please configure a key. Use `--new-key` or `--help` for more information.");
-    // } else {
-    //     let command = match cli.get_command() {
-    //         Some(val) => val.as_str(),
-    //         None => exit(1),
-    //     };
+                if !no_encrypt {
+                    let key = ask_key("Enter your key:").await;
 
-    //     // TODO: Go over all errors in project to see if can be improved.
-    //     match command {
-    //         "generate" => {
-    //             let save = cli.contains_flag("save");
-    //             let length = match cli.get_option_value("-l") {
-    //                 Some(val) => match val.parse() {
-    //                     Ok(val) => val,
-    //                     Err(_) => 6,
-    //                 }
-    //                 None => 6
-    //             };
-    //             let generated_password = password_manager.pw_core.generate_password(length, !cli.contains_flag("no-upper"), !cli.contains_flag("no-digits"), !cli.contains_flag("no-special"));
+                    new_password.encrypt_password(&key).unwrap();
+                }
 
-    //             if save {
-    //                 password_manager.save_password(
-    //                     generated_password,
-    //                     cli.prompt_loop_missing_flag("-u", "Username for the password:"),
-    //                     cli.prompt_loop_missing_flag("-p", "Name for the password:"),
-    //                     !cli.contains_flag("no-encrypt")
-    //                 );
-    //             }
-    //             else {
-    //                 println!("generated password = {}", generated_password);
-    //             }
-    //         },
-    //         // TODO: Ask user before replacing password.
-    //         "load" => {
-    //             if cli.contains_flag("all") {
-    //                 password_manager.load_all_passwords()
-    //             }
-    //             else {
-    //                 password_manager.load_password(&cli.prompt_loop_missing_flag("-p", "Password Name:"));
-    //             }
-    //         },
-    //         "add" => {
-    //             password_manager.add_password(
-    //                 &cli.prompt("New password: ").unwrap(),
-    //                 &cli.prompt_loop_missing_flag("-u", "Password username:"),
-    //                 &cli.prompt_loop_missing_flag("-p", "Password name:"),
-    //                 !cli.contains_flag("no-encrypt"),
-    //             );
-    //         },
-    //         "delete" => {
-    //             let place = cli.prompt_missing_flag("-p", "Name of password to be deleted:").unwrap();
+                new_password.save().await.unwrap();
 
-    //             password_manager.delete_password(place);
-    //         },
-    //         "backup" => {
-    //             password_manager.create_backup(
-    //                 env::current_dir().unwrap(),
-    //                 !cli.contains_flag("no-encrypt")
-    //             );
+                println!("Generated Password:\n{}", new_password);
+            }
+        }
+        Commands::Load { place } => {
+            let mut loaded_password = Password::from(place).await;
 
-    //             println!("Backup created");
-    //         },
-    //         "restore" => {
-    //             password_manager.restore_backup(
-    //                 PathBuf::from(cli.get_argument(1).unwrap()),
-    //                 !cli.contains_flag("no-encrypt")
-    //             );
-    //         },
-    //         invalid => println!("`{}` is not a recognized command. Please enter a valid command. Use `--help` for more information.", invalid)
-    //     }
-    // }
+            if loaded_password.is_encrypted() {
+                let key = ask_key("Enter your key:").await;
+
+                loaded_password
+                    .decrypt_password(&key)
+                    .expect("Error decrypting password.");
+            }
+
+            println!("Password:\n{}", loaded_password);
+        }
+        Commands::Add {
+            place,
+            username,
+            no_encrypt,
+        } => {
+            let password = ask_question("Enter password you desire to save:\n");
+            let mut new_password = Password::new(username, place, Some(password));
+
+            if !no_encrypt {
+                let key = ask_key("Enter your key:").await;
+
+                new_password
+                    .encrypt_password(&key)
+                    .expect("Error encrypting password.");
+            }
+
+            new_password.save().await.expect("Error saving password.");
+
+            println!("Saved password:\n{}", new_password);
+        }
+        Commands::Delete { place, force } => {
+            let password_in_question = Password::from(place).await;
+
+            if !force {
+                println!("Selected password to delete:\n{}", &password_in_question);
+                match ask_question("Are you sure you want to delete this password? [y/n]: ")
+                    .as_str()
+                {
+                    "y" => (),
+                    "n" => {
+                        println!("Aborting");
+                        exit(0);
+                    }
+                    other => {
+                        println!("Did not recognize {}. Aborting", other);
+                        exit(0);
+                    }
+                };
+            }
+
+            password_in_question.delete().await;
+        }
+        Commands::Bcakup { location } => create_backup(location),
+        Commands::Restore { file } => restore_backup(file),
+    }
+}
+
+pub fn ask_question(question: &str) -> String {
+    let mut answer = String::new();
+
+    print!("{}", question);
+    stdin()
+        .read_line(&mut answer)
+        .expect("Error reading input.");
+
+    answer.trim().to_string()
+}
+
+async fn ask_key(question: &str) -> String {
+    let mut key = String::new();
+
+    while !verify_key(&key).await {
+        key = prompt_password(question).expect("Error reading secret.");
+    }
+
+    key
+}
+
+pub fn display_passwords(passwords: &Vec<Password>) -> String {
+    let mut result = String::new();
+
+    for (index, password) in passwords.iter().enumerate() {
+        result.push_str(&format!("\n{}:\n{}\n", index, password))
+    }
+
+    result
 }
