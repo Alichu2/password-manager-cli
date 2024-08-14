@@ -178,6 +178,20 @@ impl Password {
         Ok(())
     }
 
+    pub fn to_csv_row(&mut self, key: &str) -> String {
+        if self.encrypted {
+            self.decrypt_password(key)
+                .expect("Error decrypting password.");
+        }
+
+        format!(
+            "{},{},{}",
+            self.place,
+            self.username,
+            self.password.clone().unwrap_or(String::from("no password"))
+        )
+    }
+
     pub async fn delete(&self) {
         let mut db_conn = get_sqlite_connection().await;
 
