@@ -8,7 +8,7 @@ use dirs::home_dir;
 
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
 use crate::database::get_sqlite_connection;
-use crate::security::encrypt;
+use crate::security::{decrypt, encrypt};
 
 #[derive(sqlx::FromRow)]
 pub struct Password {
@@ -39,11 +39,11 @@ impl fmt::Display for Password {
 }
 
 impl Password {
-    pub fn new(username: String, place: String, encrypted: bool, password: Option<String>) -> Self {
+    pub fn new(username: String, place: String, password: Option<String>) -> Self {
         Self {
             password,
             place,
-            encrypted,
+            encrypted: false,
             username,
         }
     }
@@ -148,6 +148,36 @@ impl Password {
         result
     }
 
+    pub fn decrypt_password(&mut self, key: &str) -> Result<()> {
+        if self.encrypted {
+            if self.password.is_some() {
+                self.password = Some(decrypt(&self.password.clone().unwrap(), key)?);
+                self.encrypted = false;
+            } else {
+                bail!("Cannot decrypt a non existing password.");
+            }
+        } else {
+            bail!("Attempting to decrypt an already decrypted password. Ignoring.")
+        }
+
+        Ok(())
+    }
+
+    pub fn encrypt_password(&mut self, key: &str) -> Result<()> {
+        if !self.encrypted {
+            if self.password.is_some() {
+                self.password = Some(encrypt(&self.password.clone().unwrap(), key));
+                self.encrypted = true;
+            } else {
+                bail!("Cannot decrypt a non existing password.");
+            }
+        } else {
+            bail!("Attempting to decrypt an already decrypted password. Ignoring.")
+        }
+
+        Ok(())
+    }
+
     pub async fn delete(&self) {
         let mut db_conn = get_sqlite_connection().await;
 
@@ -157,28 +187,17 @@ impl Password {
             .expect("Error deleting password.");
     }
 
-    pub async fn save(&self, key: Option<String>) -> Result<()> {
+    pub async fn save(&self) -> Result<()> {
         if self.password.is_some() {
             let mut db_conn = get_sqlite_connection().await;
-            let save_password: String;
-
-            if self.encrypted {
-                if key.is_some() {
-                    save_password = encrypt(&self.password.clone().unwrap(), &key.unwrap());
-                } else {
-                    bail!("Cannot generate a password without a key.");
-                }
-            } else {
-                save_password = self.password.clone().unwrap();
-            }
 
             db_conn.execute(
                 sqlx::query("INSERT INTO passwords (place, password, username, encrypted) VALUES (?, ?, ?, ?);")
                     .bind(&self.place)
-                    .bind(&save_password)
+                    .bind(&self.password.clone().unwrap())
                     .bind(&self.username)
                     .bind(self.encrypted as i32))
-            .await.expect("Error saving password into databse");
+            .await?;
         } else {
             bail!("Could not save password because no password exists.");
         }
