@@ -238,6 +238,13 @@ impl Password {
     }
 }
 
-pub fn get_all_passwords() -> Vec<Password> {
-    todo!();
+pub async fn get_all_passwords() -> Vec<Password> {
+    let mut db_conn = get_sqlite_connection().await;
+
+    let passwords = sqlx::query_as::<_, Password>("SELECT * FROM passwords;")
+        .fetch_all(&mut db_conn)
+        .await
+        .expect("Error reading passwords from database.");
+
+    passwords
 }

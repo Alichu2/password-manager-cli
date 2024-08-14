@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
+use password_manager::database::create_new_save_file;
 use password_manager::interface::{create_backup, restore_backup};
-use password_manager::password_operator::Password;
+use password_manager::password_operator::{get_all_passwords, Password};
 use password_manager::security::verify_key;
 use rpassword::prompt_password;
 use std::io::stdin;
@@ -81,6 +82,8 @@ enum Commands {
         /// Restore file.
         file: String,
     },
+    /// Initial command to create a database with a key.
+    CreateDatabase,
 }
 
 #[async_std::main]
@@ -110,7 +113,7 @@ async fn main() {
                     .await;
 
                 if !no_encrypt {
-                    let key = ask_key("Enter your key:").await;
+                    let key = ask_key().await;
 
                     new_password.encrypt_password(&key).unwrap();
                 }
@@ -122,12 +125,23 @@ async fn main() {
         }
         Commands::Load { place, all } => {
             if all {
-                unimplemented!();
+                let mut all_passwords = get_all_passwords().await;
+                let key = ask_key().await;
+
+                for password in all_passwords.iter_mut() {
+                    if password.is_encrypted() {
+                        password
+                            .decrypt_password(&key)
+                            .expect("Error decrypting one of the passwords.");
+                    }
+                }
+
+                display_passwords(&all_passwords);
             } else {
                 let mut loaded_password = Password::from(place.unwrap()).await;
 
                 if loaded_password.is_encrypted() {
-                    let key = ask_key("Enter your key:").await;
+                    let key = ask_key().await;
 
                     loaded_password
                         .decrypt_password(&key)
@@ -146,7 +160,7 @@ async fn main() {
             let mut new_password = Password::new(username, place, Some(password));
 
             if !no_encrypt {
-                let key = ask_key("Enter your key:").await;
+                let key = ask_key().await;
 
                 new_password
                     .encrypt_password(&key)
@@ -181,6 +195,9 @@ async fn main() {
         }
         Commands::Bcakup { location } => create_backup(location),
         Commands::Restore { file } => restore_backup(file),
+        Commands::CreateDatabase => {
+            create_new_save_file(&prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key."));
+        }
     }
 }
 
@@ -195,11 +212,11 @@ pub fn ask_question(question: &str) -> String {
     answer.trim().to_string()
 }
 
-async fn ask_key(question: &str) -> String {
+async fn ask_key() -> String {
     let mut key = String::new();
 
     while !verify_key(&key).await {
-        key = prompt_password(question).expect("Error reading secret.");
+        key = prompt_password("Enter your key: ").expect("Error reading secret.");
     }
 
     key
