@@ -136,7 +136,7 @@ async fn main() {
                     }
                 }
 
-                display_passwords(&all_passwords);
+                println!("{}", display_passwords(&all_passwords));
             } else {
                 let mut loaded_password = Password::from(place.unwrap()).await;
 

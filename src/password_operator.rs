@@ -15,7 +15,7 @@ pub struct Password {
     pub password: Option<String>,
     pub username: String,
     pub place: String,
-    pub encrypted: bool,
+    pub encrypted: i32,
 }
 
 impl fmt::Display for Password {
@@ -43,7 +43,7 @@ impl Password {
         Self {
             password,
             place,
-            encrypted: false,
+            encrypted: 0,
             username,
         }
     }
@@ -74,7 +74,7 @@ impl Password {
     }
 
     pub fn is_encrypted(&self) -> bool {
-        self.encrypted
+        self.encrypted == 1
     }
 
     pub fn generate_valid_password(
@@ -167,10 +167,10 @@ impl Password {
     }
 
     pub fn decrypt_password(&mut self, key: &str) -> Result<()> {
-        if self.encrypted {
+        if self.is_encrypted() {
             if self.password.is_some() {
                 self.password = Some(decrypt(&self.password.clone().unwrap(), key)?);
-                self.encrypted = false;
+                self.encrypted = 0;
             } else {
                 bail!("Cannot decrypt a non existing password.");
             }
@@ -182,10 +182,10 @@ impl Password {
     }
 
     pub fn encrypt_password(&mut self, key: &str) -> Result<()> {
-        if !self.encrypted {
+        if !self.is_encrypted() {
             if self.password.is_some() {
                 self.password = Some(encrypt(&self.password.clone().unwrap(), key));
-                self.encrypted = true;
+                self.encrypted = 1;
             } else {
                 bail!("Cannot decrypt a non existing password.");
             }
@@ -197,7 +197,7 @@ impl Password {
     }
 
     pub fn to_csv_row(&mut self, key: &str) -> String {
-        if self.encrypted {
+        if self.is_encrypted() {
             self.decrypt_password(key)
                 .expect("Error decrypting password.");
         }
@@ -228,7 +228,7 @@ impl Password {
                     .bind(&self.place)
                     .bind(&self.password.clone().unwrap())
                     .bind(&self.username)
-                    .bind(self.encrypted as i32))
+                    .bind(self.encrypted))
             .await?;
         } else {
             bail!("Could not save password because no password exists.");
