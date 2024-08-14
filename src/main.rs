@@ -1,4 +1,80 @@
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Generate a new password.
+    Generate {
+        /// Save the generated password to the database.
+        #[arg(short, long)]
+        save: bool,
+        /// Lenght of the generated password.
+        #[arg(short, long, default_value_t = 12)]
+        length: usize,
+        /// Weather or not the password should have specail characters.
+        #[arg(long)]
+        no_special: bool,
+        /// Weather or not the password should have upper case characters.
+        #[arg(long)]
+        no_uppercase: bool,
+        /// Weather or not the password should have numbers.
+        #[arg(long)]
+        no_numbers: bool,
+        /// Password's place.
+        #[arg(short, long)]
+        place: String,
+        /// Password's username.
+        #[arg(short, long)]
+        username: String,
+        /// Weather or not to encrypt the password if saved.
+        #[arg(short, long)]
+        no_encrypt: bool,
+    },
+    /// Add a new password to the database.
+    Add {
+        /// Password's place.
+        #[arg(short, long)]
+        place: String,
+        /// Password's username.
+        #[arg(short, long)]
+        username: String,
+        /// Weather or not to encrypt the password if saved.
+        #[arg(short, long)]
+        no_encrypt: bool,
+    },
+    /// Delete a password from the database.
+    Delete {
+        /// Password's place.
+        place: String,
+        /// Delete without confirmation.
+        #[arg(short, long)]
+        force: bool,
+    },
+    /// Load a password from the database.
+    Load {
+        /// Password's place.
+        place: String,
+    },
+    /// Back the passwords up.
+    Bcakup {
+        /// Backup location.
+        location: String,
+    },
+    /// Restore passwords from a backup.
+    Restore {
+        /// Restore file.
+        file: String,
+    },
+}
+
 fn main() {
+    let cli = Cli::parse();
     println!("Currently working on version 2. It will be better and stronger.");
     // let cli: CLI = CLI::from(env::args().collect());
     // let password_manager: PasswordManagerInterface = PasswordManagerInterface::new();
