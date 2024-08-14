@@ -38,10 +38,10 @@ pub async fn get_sqlite_connection() -> SqliteConnection {
         .expect("Error establishing connection to database.")
 }
 
-pub fn create_new_save_file(new_key: &str) {
+pub async fn create_new_save_file(new_key: &str) {
     if !get_save_file_path().exists() {
-        create_save_file();
-        save_new_key(new_key.to_string());
+        create_save_file().await.unwrap();
+        save_new_key(new_key.to_string()).await;
     } else {
         println!("Save file and key already exists. Cannot regenerate.");
     }
@@ -52,7 +52,7 @@ pub async fn create_save_file() -> Result<()> {
 
     let mut db_conn = get_sqlite_connection().await;
 
-    db_conn.execute(sqlx::query("CREATE TABLE passwords (password TEXT, username TEXT, place TEXT PRIMARY KEY, is_encrypted NUMBER);")).await?;
+    db_conn.execute(sqlx::query("CREATE TABLE passwords (password TEXT, username TEXT, place TEXT PRIMARY KEY, encrypted NUMBER);")).await?;
 
     db_conn
         .execute(sqlx::query(

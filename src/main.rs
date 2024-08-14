@@ -196,7 +196,7 @@ async fn main() {
         Commands::Bcakup { location } => create_backup(location),
         Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => {
-            create_new_save_file(&prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key."));
+            create_new_save_file(&prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key.")).await;
         }
     }
 }
