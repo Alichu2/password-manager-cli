@@ -65,6 +65,24 @@ impl Password {
         use_numbers: bool,
         use_upper: bool,
     ) {
+        self.password = Some(Self::generate_valid_password(
+            length,
+            use_special,
+            use_numbers,
+            use_upper,
+        ));
+    }
+
+    pub fn is_encrypted(&self) -> bool {
+        self.encrypted
+    }
+
+    pub fn generate_valid_password(
+        length: usize,
+        use_special: bool,
+        use_numbers: bool,
+        use_upper: bool,
+    ) -> String {
         let mut password = Self::generate_password(length, use_special, use_numbers, use_upper);
         let mut correct =
             Self::verify_password(length, use_special, use_numbers, use_upper, &password);
@@ -74,7 +92,7 @@ impl Password {
             correct = Self::verify_password(length, use_special, use_numbers, use_upper, &password);
         }
 
-        self.password = Some(password);
+        password
     }
 
     pub fn verify_password(
