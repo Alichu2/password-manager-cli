@@ -17,9 +17,6 @@ struct Cli {
 enum Commands {
     /// Generate a new password.
     Generate {
-        /// Save the generated password to the database.
-        #[arg(short, long)]
-        save: bool,
         /// Lenght of the generated password.
         #[arg(short, long, default_value_t = 12)]
         length: usize,
@@ -32,12 +29,15 @@ enum Commands {
         /// Weather or not the password should have numbers.
         #[arg(long)]
         no_numbers: bool,
+        /// Save the generated password to the database.
+        #[arg(short, long, requires_all = ["place", "username"])]
+        save: bool,
         /// Password's place.
         #[arg(short, long)]
-        place: String,
+        place: Option<String>,
         /// Password's username.
         #[arg(short, long)]
-        username: String,
+        username: Option<String>,
         /// Weather or not to encrypt the password if saved.
         #[arg(short, long)]
         no_encrypt: bool,
@@ -63,9 +63,13 @@ enum Commands {
         force: bool,
     },
     /// Load a password from the database.
+    #[group(required = true, multiple = false)]
     Load {
         /// Password's place.
-        place: String,
+        place: Option<String>,
+        /// Load all paswords
+        #[arg(long)]
+        all: bool,
     },
     /// Back the passwords up.
     Bcakup {
@@ -100,7 +104,7 @@ async fn main() {
                     Password::generate_password(length, !no_special, !no_numbers, !no_uppercase);
                 println!("Generated password: {}", new_password);
             } else {
-                let mut new_password = Password::new(username, place, None);
+                let mut new_password = Password::new(username.unwrap(), place.unwrap(), None);
                 new_password
                     .generate_and_attach_password(length, !no_special, !no_numbers, !no_uppercase)
                     .await;
@@ -116,18 +120,22 @@ async fn main() {
                 println!("Generated Password:\n{}", new_password);
             }
         }
-        Commands::Load { place } => {
-            let mut loaded_password = Password::from(place).await;
+        Commands::Load { place, all } => {
+            if all {
+                unimplemented!();
+            } else {
+                let mut loaded_password = Password::from(place.unwrap()).await;
 
-            if loaded_password.is_encrypted() {
-                let key = ask_key("Enter your key:").await;
+                if loaded_password.is_encrypted() {
+                    let key = ask_key("Enter your key:").await;
 
-                loaded_password
-                    .decrypt_password(&key)
-                    .expect("Error decrypting password.");
+                    loaded_password
+                        .decrypt_password(&key)
+                        .expect("Error decrypting password.");
+                }
+
+                println!("Password:\n{}", loaded_password);
             }
-
-            println!("Password:\n{}", loaded_password);
         }
         Commands::Add {
             place,
