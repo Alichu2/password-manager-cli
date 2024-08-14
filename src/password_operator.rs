@@ -185,7 +185,7 @@ impl Password {
         }
 
         format!(
-            "{},{},{}",
+            "{},{},{}\n",
             self.place,
             self.username,
             self.password.clone().unwrap_or(String::from("no password"))
