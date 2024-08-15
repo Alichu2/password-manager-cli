@@ -6,6 +6,7 @@ use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 use sqlx::Executor;
 
 #[derive(sqlx::FromRow)]
+#[allow(dead_code)]
 struct ConfigItem {
     pub name: String,
     pub value: String,

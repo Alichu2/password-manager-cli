@@ -1,6 +1,6 @@
 [package]
 name = "password-manager"
-version = "1.0.0-rc2"
+version = "0.3.0-rc1"
 edition = "2021"
 authors = ["Aliyu Nauke"]
 description = "A CLI tool used to manage passwords."

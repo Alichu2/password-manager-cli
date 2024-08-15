@@ -3,9 +3,6 @@ use rand::prelude::IteratorRandom;
 use sqlx::Executor;
 use std::fmt;
 
-#[allow(unused_imports)]
-use dirs::home_dir;
-
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
 use crate::database::get_sqlite_connection;
 use crate::security::{decrypt, encrypt};

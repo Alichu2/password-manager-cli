@@ -4,6 +4,9 @@ use sqlx::{Connection, Executor, SqliteConnection};
 use std::fs;
 use std::path::PathBuf;
 
+#[allow(unused_imports)]
+use dirs::home_dir;
+
 #[cfg(not(debug_assertions))]
 fn get_home_path() -> PathBuf {
     match home_dir() {
@@ -26,10 +29,6 @@ pub fn get_save_dir_path() -> PathBuf {
 
 fn get_save_file_path() -> PathBuf {
     get_save_dir_path().join("data.sqlite")
-}
-
-fn get_save_file_path_str() -> String {
-    get_save_file_path().display().to_string()
 }
 
 pub async fn get_sqlite_connection() -> SqliteConnection {
