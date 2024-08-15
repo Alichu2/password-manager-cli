@@ -87,7 +87,6 @@ enum Commands {
 #[async_std::main]
 async fn main() {
     let cli = Cli::parse();
-    println!("Currently working on version 2. It will be better and stronger.");
 
     match cli.command {
         Commands::Generate {
