@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use rand::prelude::IteratorRandom;
 use sqlx::Executor;
 use std::fmt;
-use std::process::{exit, ExitCode};
+use std::process::exit;
 
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
 use crate::database::get_sqlite_connection;
