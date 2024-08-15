@@ -3,3 +3,4 @@ pub const HASH_COST: u32 = 8;
 pub const LOWERCASE_CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyz";
 pub const NUMBERS: &str = "0123456789";
 pub const SPECIAL_CHARACTERS: &str = "!@#$%^&*()-_=+[]{}<>/?";
+pub const BACKUP_FILE_NAME: &str = "password_backup.csv";

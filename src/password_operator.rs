@@ -196,12 +196,7 @@ impl Password {
         Ok(())
     }
 
-    pub fn to_csv_row(&mut self, key: &str) -> String {
-        if self.is_encrypted() {
-            self.decrypt_password(key)
-                .expect("Error decrypting password.");
-        }
-
+    pub fn to_csv_row(&mut self) -> String {
         format!(
             "{},{},{}\n",
             self.place,
@@ -247,4 +242,18 @@ pub async fn get_all_passwords() -> Vec<Password> {
         .expect("Error reading passwords from database.");
 
     passwords
+}
+
+pub async fn get_all_decrypted_passwords(key: &str) -> Vec<Password> {
+    let mut all_passwords = get_all_passwords().await;
+
+    for password in all_passwords.iter_mut() {
+        if password.is_encrypted() {
+            password
+                .decrypt_password(key)
+                .expect("Error decrypting one of the passwords.");
+        }
+    }
+
+    all_passwords
 }

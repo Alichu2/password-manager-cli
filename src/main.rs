@@ -1,9 +1,10 @@
 use clap::{Parser, Subcommand};
+use password_manager::backups::{create_backup, restore_backup};
 use password_manager::database::create_new_save_file;
-use password_manager::interface::{create_backup, restore_backup};
-use password_manager::password_operator::{get_all_passwords, Password};
+use password_manager::password_operator::{get_all_decrypted_passwords, Password};
 use password_manager::security::verify_key;
 use rpassword::prompt_password;
+use std::env;
 use std::io::stdin;
 use std::process::exit;
 
@@ -73,10 +74,7 @@ enum Commands {
         all: bool,
     },
     /// Back the passwords up.
-    Bcakup {
-        /// Backup location.
-        location: String,
-    },
+    Backup,
     /// Restore passwords from a backup.
     Restore {
         /// Restore file.
@@ -127,16 +125,8 @@ async fn main() {
         }
         Commands::Load { place, all } => {
             if all {
-                let mut all_passwords = get_all_passwords().await;
                 let key = ask_key().await;
-
-                for password in all_passwords.iter_mut() {
-                    if password.is_encrypted() {
-                        password
-                            .decrypt_password(&key)
-                            .expect("Error decrypting one of the passwords.");
-                    }
-                }
+                let all_passwords = get_all_decrypted_passwords(&key).await;
 
                 println!("{}", display_passwords(&all_passwords));
             } else {
@@ -197,7 +187,11 @@ async fn main() {
 
             password_in_question.delete().await;
         }
-        Commands::Bcakup { location } => create_backup(location),
+        Commands::Backup => {
+            let key = ask_key().await;
+
+            create_backup(&mut env::current_dir().unwrap(), &key).await;
+        }
         Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => {
             create_new_save_file(&prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key.")).await;
