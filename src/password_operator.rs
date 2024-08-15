@@ -2,12 +2,13 @@ use anyhow::{bail, Result};
 use rand::prelude::IteratorRandom;
 use sqlx::Executor;
 use std::fmt;
+use std::process::{exit, ExitCode};
 
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
 use crate::database::get_sqlite_connection;
 use crate::security::{decrypt, encrypt};
 
-#[derive(sqlx::FromRow)]
+#[derive(sqlx::FromRow, Clone)]
 pub struct Password {
     pub password: Option<String>,
     pub username: String,
@@ -48,11 +49,18 @@ impl Password {
     pub async fn from(place: String) -> Self {
         let db_conn = get_sqlite_connection();
 
-        sqlx::query_as::<_, Self>("SELECT * FROM passwords WHERE place = ?;")
+        let possibilities = sqlx::query_as::<_, Self>("SELECT * FROM passwords WHERE place = ?;")
             .bind(&place)
-            .fetch_one(&mut db_conn.await)
+            .fetch_all(&mut db_conn.await)
             .await
-            .expect("Error reading password from database.")
+            .expect("Error reading password from database.");
+
+        if possibilities.len() == 0 {
+            println!("No passwords found.");
+            exit(0);
+        } else {
+            possibilities[0].clone()
+        }
     }
 
     pub async fn generate_and_attach_password(
