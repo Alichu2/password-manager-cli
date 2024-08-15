@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use password_manager::backups::{create_backup, restore_backup};
+use password_manager::backups::create_backup;
 use password_manager::database::create_new_save_file;
 use password_manager::password_operator::{get_all_decrypted_passwords, Password};
 use password_manager::security::verify_key;
@@ -75,11 +75,11 @@ enum Commands {
     },
     /// Back the passwords up.
     Backup,
-    /// Restore passwords from a backup.
-    Restore {
-        /// Restore file.
-        file: String,
-    },
+    // /// Restore passwords from a backup.
+    // Restore {
+    //     /// Restore file.
+    //     file: String,
+    // },
     /// Initial command to create a database with a key.
     CreateDatabase,
 }
@@ -192,7 +192,7 @@ async fn main() {
 
             create_backup(&mut env::current_dir().unwrap(), &key).await;
         }
-        Commands::Restore { file } => restore_backup(file),
+        // Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => {
             create_new_save_file(&prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key.")).await;
         }

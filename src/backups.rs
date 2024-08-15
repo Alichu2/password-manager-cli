@@ -20,6 +20,6 @@ pub async fn create_backup(location: &mut PathBuf, key: &str) {
         .expect("Error writing backup file.");
 }
 
-pub fn restore_backup(file: String) {
-    unimplemented!()
-}
+// pub fn restore_backup(file: String) {
+//     unimplemented!()
+// }
