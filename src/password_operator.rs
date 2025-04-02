@@ -10,34 +10,128 @@ use crate::security::{decrypt, encrypt};
 
 #[derive(sqlx::FromRow, Clone)]
 pub struct Password {
-    pub password: Option<String>,
+    pub password: String,
     pub username: String,
     pub place: String,
     pub encrypted: i32,
 }
 
+pub struct PasswordBuilder {
+    pub username: String,
+    pub place: String,
+    options: PasswordBuildOptions,
+}
+
+#[derive(Clone, Copy)]
+pub struct PasswordBuildOptions {
+    pub length: usize,
+    pub use_special: bool,
+    pub use_numbers: bool,
+    pub use_upper: bool,
+}
+
+impl PasswordBuilder {
+    pub fn from(username: String, place: String, options: PasswordBuildOptions) -> Self {
+        Self {
+            username,
+            place,
+            options,
+        }
+    }
+
+    pub fn to_password(&self) -> Password {
+        let password = Self::generate_valid_password(self.options);
+
+        Password::new(self.username.clone(), self.place.clone(), password)
+    }
+
+    pub fn generate_valid_password(options: PasswordBuildOptions) -> String {
+        let mut password = Self::generate_password(options);
+        let mut correct = Self::verify_password(options, &password);
+
+        while !correct {
+            password = Self::generate_password(options);
+            correct = Self::verify_password(options, &password);
+        }
+
+        password
+    }
+
+    pub fn verify_password(options: PasswordBuildOptions, password: &str) -> bool {
+        let mut is_not_correct = false;
+        is_not_correct = is_not_correct || !(password.len() == options.length);
+        if options.use_special {
+            is_not_correct = is_not_correct || !Self::contains_char(SPECIAL_CHARACTERS, password);
+        }
+        if options.use_numbers {
+            is_not_correct = is_not_correct || !Self::contains_char(NUMBERS, password);
+        }
+        if options.use_upper {
+            is_not_correct = is_not_correct
+                || !Self::contains_char(&LOWERCASE_CHARACTERS.to_uppercase(), password);
+        }
+
+        !is_not_correct
+    }
+
+    fn contains_char(charset: &str, text: &str) -> bool {
+        for char in charset.chars() {
+            if text.contains(char) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    pub fn generate_password(options: PasswordBuildOptions) -> String {
+        let lowercase_chars = "abcdefghijklmnopqrstuvwxyz";
+        let digit_chars = "0123456789";
+        let special_chars = "!@#$%^&*()-_=+[]{}<>/?";
+
+        let mut char_set = String::new();
+
+        char_set.push_str(lowercase_chars);
+
+        if options.use_upper {
+            char_set.push_str(lowercase_chars.to_uppercase().as_str());
+        }
+        if options.use_numbers {
+            char_set.push_str(digit_chars);
+        }
+        if options.use_special {
+            char_set.push_str(special_chars);
+        }
+
+        let mut result = String::new();
+
+        for _ in 0..options.length {
+            let next_char: char = char_set
+                .chars()
+                .choose(&mut rand::thread_rng())
+                .expect("Could not generate password (Error Rand Select).");
+
+            result.push_str(next_char.to_string().as_str());
+        }
+
+        result
+    }
+}
+
 impl fmt::Display for Password {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.password.is_some() {
-            write!(
-                f,
-                "\tpalce = {}\n\tusername = {}\n\tpassword = {}",
-                self.place,
-                self.username,
-                self.password.clone().unwrap()
-            )
-        } else {
-            write!(
-                f,
-                "\tpalce = {}\n\tusername = {}\n\tpassword = not generated",
-                self.place, self.username
-            )
-        }
+        write!(
+            f,
+            "\tpalce = {}\n\tusername = {}\n\tpassword = {}",
+            self.place,
+            self.username,
+            self.password.clone()
+        )
     }
 }
 
 impl Password {
-    pub fn new(username: String, place: String, password: Option<String>) -> Self {
+    pub fn new(username: String, place: String, password: String) -> Self {
         Self {
             password,
             place,
@@ -63,122 +157,14 @@ impl Password {
         }
     }
 
-    pub async fn generate_and_attach_password(
-        &mut self,
-        length: usize,
-        use_special: bool,
-        use_numbers: bool,
-        use_upper: bool,
-    ) {
-        self.password = Some(Self::generate_valid_password(
-            length,
-            use_special,
-            use_numbers,
-            use_upper,
-        ));
-    }
-
     pub fn is_encrypted(&self) -> bool {
         self.encrypted == 1
     }
 
-    pub fn generate_valid_password(
-        length: usize,
-        use_special: bool,
-        use_numbers: bool,
-        use_upper: bool,
-    ) -> String {
-        let mut password = Self::generate_password(length, use_special, use_numbers, use_upper);
-        let mut correct =
-            Self::verify_password(length, use_special, use_numbers, use_upper, &password);
-
-        while !correct {
-            password = Self::generate_password(length, use_special, use_numbers, use_upper);
-            correct = Self::verify_password(length, use_special, use_numbers, use_upper, &password);
-        }
-
-        password
-    }
-
-    pub fn verify_password(
-        length: usize,
-        use_special: bool,
-        use_numbers: bool,
-        use_upper: bool,
-        password: &str,
-    ) -> bool {
-        let mut is_not_correct = false;
-        is_not_correct = is_not_correct || !(password.len() == length);
-        if use_special {
-            is_not_correct = is_not_correct || !Self::contains_char(SPECIAL_CHARACTERS, password);
-        }
-        if use_numbers {
-            is_not_correct = is_not_correct || !Self::contains_char(NUMBERS, password);
-        }
-        if use_upper {
-            is_not_correct = is_not_correct
-                || !Self::contains_char(&LOWERCASE_CHARACTERS.to_uppercase(), password);
-        }
-
-        !is_not_correct
-    }
-
-    fn contains_char(charset: &str, text: &str) -> bool {
-        for char in charset.chars() {
-            if text.contains(char) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    pub fn generate_password(
-        length: usize,
-        use_special: bool,
-        use_numbers: bool,
-        use_upper: bool,
-    ) -> String {
-        let lowercase_chars = "abcdefghijklmnopqrstuvwxyz";
-        let digit_chars = "0123456789";
-        let special_chars = "!@#$%^&*()-_=+[]{}<>/?";
-
-        let mut char_set = String::new();
-
-        char_set.push_str(lowercase_chars);
-
-        if use_upper {
-            char_set.push_str(lowercase_chars.to_uppercase().as_str());
-        }
-        if use_numbers {
-            char_set.push_str(digit_chars);
-        }
-        if use_special {
-            char_set.push_str(special_chars);
-        }
-
-        let mut result = String::new();
-
-        for _ in 0..length {
-            let next_char: char = char_set
-                .chars()
-                .choose(&mut rand::thread_rng())
-                .expect("Could not generate password (Error Rand Select).");
-
-            result.push_str(next_char.to_string().as_str());
-        }
-
-        result
-    }
-
     pub fn decrypt_password(&mut self, key: &str) -> Result<()> {
         if self.is_encrypted() {
-            if self.password.is_some() {
-                self.password = Some(decrypt(&self.password.clone().unwrap(), key)?);
-                self.encrypted = 0;
-            } else {
-                bail!("Cannot decrypt a non existing password.");
-            }
+            self.password = decrypt(&self.password, key)?;
+            self.encrypted = 0;
         } else {
             bail!("Attempting to decrypt an already decrypted password. Ignoring.")
         }
@@ -188,12 +174,8 @@ impl Password {
 
     pub fn encrypt_password(&mut self, key: &str) -> Result<()> {
         if !self.is_encrypted() {
-            if self.password.is_some() {
-                self.password = Some(encrypt(&self.password.clone().unwrap(), key));
-                self.encrypted = 1;
-            } else {
-                bail!("Cannot decrypt a non existing password.");
-            }
+            self.password = encrypt(&self.password, key);
+            self.encrypted = 1;
         } else {
             bail!("Attempting to decrypt an already decrypted password. Ignoring.")
         }
@@ -206,7 +188,7 @@ impl Password {
             "{},{},{}\n",
             self.place,
             self.username,
-            self.password.clone().unwrap_or(String::from("no password"))
+            self.password.clone()
         )
     }
 
@@ -220,19 +202,15 @@ impl Password {
     }
 
     pub async fn save(&self) -> Result<()> {
-        if self.password.is_some() {
-            let mut db_conn = get_sqlite_connection().await;
+        let mut db_conn = get_sqlite_connection().await;
 
-            db_conn.execute(
-                sqlx::query("INSERT INTO passwords (place, password, username, encrypted) VALUES (?, ?, ?, ?);")
-                    .bind(&self.place)
-                    .bind(&self.password.clone().unwrap())
-                    .bind(&self.username)
-                    .bind(self.encrypted))
-            .await?;
-        } else {
-            bail!("Could not save password because no password exists.");
-        }
+        db_conn.execute(
+            sqlx::query("INSERT INTO passwords (place, password, username, encrypted) VALUES (?, ?, ?, ?);")
+                .bind(&self.place)
+                .bind(&self.password)
+                .bind(&self.username)
+                .bind(self.encrypted))
+        .await?;
 
         Ok(())
     }

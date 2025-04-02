@@ -122,7 +122,9 @@ mod commands {
     use password_manager::{
         backups::create_backup,
         database::create_new_save_file,
-        password_operator::{get_all_decrypted_passwords, Password},
+        password_operator::{
+            get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
+        },
     };
     use rpassword::prompt_password;
     use std::env;
@@ -155,15 +157,20 @@ mod commands {
         username: Option<String>,
         no_encrypt: bool,
     ) {
+        let options = PasswordBuildOptions {
+            length,
+            use_special: !no_special,
+            use_upper: !no_uppercase,
+            use_numbers: !no_numbers,
+        };
+
         if !save {
-            let new_password =
-                Password::generate_password(length, !no_special, !no_numbers, !no_uppercase);
+            let new_password = PasswordBuilder::generate_password(options);
             println!("Generated password: {}", new_password);
         } else {
-            let mut new_password = Password::new(username.unwrap(), place.unwrap(), None);
-            new_password
-                .generate_and_attach_password(length, !no_special, !no_numbers, !no_uppercase)
-                .await;
+            let password_builder =
+                PasswordBuilder::from(username.unwrap(), place.unwrap(), options);
+            let mut new_password = password_builder.to_password();
 
             if !no_encrypt {
                 let key = ask_key().await;
@@ -181,7 +188,7 @@ mod commands {
 
     pub async fn add_password(place: String, username: String, no_encrypt: bool) {
         let password = ask_question("Enter password you desire to save:\n");
-        let mut new_password = Password::new(username, place, Some(password));
+        let mut new_password = Password::new(username, place, password);
 
         if !no_encrypt {
             let key = ask_key().await;
