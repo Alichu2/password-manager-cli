@@ -19,25 +19,25 @@ enum Commands {
         /// Lenght of the generated password.
         #[arg(short, long, default_value_t = 12)]
         length: usize,
-        /// Weather or not the password should have specail characters.
+        /// Should the password have special characters.
         #[arg(long)]
         no_special: bool,
-        /// Weather or not the password should have upper case characters.
+        /// Should the password have upper case characters.
         #[arg(long)]
         no_uppercase: bool,
-        /// Weather or not the password should have numbers.
+        /// Should the password have numbers.
         #[arg(long)]
         no_numbers: bool,
         /// Save the generated password to the database.
         #[arg(short, long, requires_all = ["place", "username"])]
         save: bool,
-        /// Password's place.
+        /// Password place (eg. google) used later to load from database.
         #[arg(short, long)]
         place: Option<String>,
-        /// Password's username.
+        /// Password username or email.
         #[arg(short, long)]
         username: Option<String>,
-        /// Weather or not to encrypt the password if saved.
+        /// Should the password be encrypted if saved.
         #[arg(short, long)]
         no_encrypt: bool,
     },
@@ -49,7 +49,7 @@ enum Commands {
         /// Password's username.
         #[arg(short, long)]
         username: String,
-        /// Weather or not to encrypt the password if saved.
+        /// Should the password be encrypted if saved.
         #[arg(short, long)]
         no_encrypt: bool,
     },
