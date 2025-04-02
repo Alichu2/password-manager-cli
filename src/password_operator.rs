@@ -46,8 +46,8 @@ impl PasswordBuilder {
     }
 
     pub fn generate_valid_password(options: PasswordBuildOptions) -> String {
-        let mut password = Self::generate_password(options);
-        let mut correct = Self::verify_password(options, &password);
+        let mut password = String::new();
+        let mut correct = false;
 
         while !correct {
             password = Self::generate_password(options);
