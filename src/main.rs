@@ -1,12 +1,9 @@
 use clap::{Parser, Subcommand};
-use password_manager::backups::create_backup;
-use password_manager::database::create_new_save_file;
-use password_manager::password_operator::{get_all_decrypted_passwords, Password};
+use password_manager::password_operator::Password;
 use password_manager::security::verify_key;
 use rpassword::prompt_password;
-use std::env;
+
 use std::io::stdin;
-use std::process::exit;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -60,9 +57,6 @@ enum Commands {
     Delete {
         /// Password's place.
         place: String,
-        /// Delete without confirmation.
-        #[arg(short, long)]
-        force: bool,
     },
     /// Load a password from the database.
     #[group(required = true, multiple = false)]
@@ -99,102 +93,147 @@ async fn main() {
             username,
             no_encrypt,
         } => {
-            if !save {
-                let new_password =
-                    Password::generate_password(length, !no_special, !no_numbers, !no_uppercase);
-                println!("Generated password: {}", new_password);
-            } else {
-                let mut new_password = Password::new(username.unwrap(), place.unwrap(), None);
-                new_password
-                    .generate_and_attach_password(length, !no_special, !no_numbers, !no_uppercase)
-                    .await;
-
-                if !no_encrypt {
-                    let key = ask_key().await;
-
-                    println!("Generated Password:\n{}", new_password);
-
-                    new_password.encrypt_password(&key).unwrap();
-                } else {
-                    println!("Generated Password:\n{}", new_password);
-                }
-
-                new_password.save().await.unwrap();
-            }
+            commands::generate(
+                save,
+                length,
+                no_special,
+                no_uppercase,
+                no_numbers,
+                place,
+                username,
+                no_encrypt,
+            )
+            .await
         }
-        Commands::Load { place, all } => {
-            if all {
-                let key = ask_key().await;
-                let all_passwords = get_all_decrypted_passwords(&key).await;
-
-                println!("{}", display_passwords(&all_passwords));
-            } else {
-                let mut loaded_password = Password::from(place.unwrap()).await;
-
-                if loaded_password.is_encrypted() {
-                    let key = ask_key().await;
-
-                    loaded_password
-                        .decrypt_password(&key)
-                        .expect("Error decrypting password.");
-                }
-
-                println!("Password:\n{}", loaded_password);
-            }
-        }
+        Commands::Load { place, all } => commands::load(place, all).await,
         Commands::Add {
             place,
             username,
             no_encrypt,
-        } => {
-            let password = ask_question("Enter password you desire to save:\n");
-            let mut new_password = Password::new(username, place, Some(password));
+        } => commands::add_password(place, username, no_encrypt).await,
+        Commands::Delete { place } => commands::delete(place).await,
+        Commands::Backup => commands::backup().await,
+        // Commands::Restore { file } => restore_backup(file),
+        Commands::CreateDatabase => commands::create_database().await,
+    }
+}
+
+mod commands {
+    use password_manager::{
+        backups::create_backup,
+        database::create_new_save_file,
+        password_operator::{get_all_decrypted_passwords, Password},
+    };
+    use rpassword::prompt_password;
+    use std::env;
+
+    use crate::display_passwords;
+
+    use super::{ask_key, ask_question};
+
+    pub async fn backup() {
+        let key = ask_key().await;
+        let mut current_dir = env::current_dir().unwrap();
+
+        // TODO: Why does current_dir need to be mutuable?
+        create_backup(&mut current_dir, &key).await;
+    }
+
+    pub async fn create_database() {
+        let key = prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key.");
+
+        create_new_save_file(&key).await;
+    }
+
+    pub async fn generate(
+        save: bool,
+        length: usize,
+        no_special: bool,
+        no_uppercase: bool,
+        no_numbers: bool,
+        place: Option<String>,
+        username: Option<String>,
+        no_encrypt: bool,
+    ) {
+        if !save {
+            let new_password =
+                Password::generate_password(length, !no_special, !no_numbers, !no_uppercase);
+            println!("Generated password: {}", new_password);
+        } else {
+            let mut new_password = Password::new(username.unwrap(), place.unwrap(), None);
+            new_password
+                .generate_and_attach_password(length, !no_special, !no_numbers, !no_uppercase)
+                .await;
 
             if !no_encrypt {
                 let key = ask_key().await;
 
-                println!("Saved password:\n{}", new_password);
+                println!("Generated Password:\n{}", new_password);
 
-                new_password
-                    .encrypt_password(&key)
-                    .expect("Error encrypting password.");
+                new_password.encrypt_password(&key).unwrap();
             } else {
-                println!("Saved password:\n{}", new_password);
+                println!("Generated Password:\n{}", new_password);
             }
 
-            new_password.save().await.expect("Error saving password.");
+            new_password.save().await.unwrap();
         }
-        Commands::Delete { place, force } => {
-            let password_in_question = Password::from(place).await;
+    }
 
-            if !force {
-                println!("Selected password to delete:\n{}", &password_in_question);
-                match ask_question("Are you sure you want to delete this password? [y/n]: ")
-                    .as_str()
-                {
-                    "y" => (),
-                    "n" => {
-                        println!("Aborting");
-                        exit(0);
-                    }
-                    other => {
-                        println!("Did not recognize {}. Aborting", other);
-                        exit(0);
-                    }
-                };
-            }
+    pub async fn add_password(place: String, username: String, no_encrypt: bool) {
+        let password = ask_question("Enter password you desire to save:\n");
+        let mut new_password = Password::new(username, place, Some(password));
 
-            password_in_question.delete().await;
-        }
-        Commands::Backup => {
+        if !no_encrypt {
             let key = ask_key().await;
 
-            create_backup(&mut env::current_dir().unwrap(), &key).await;
+            println!("Saved password:\n{}", new_password);
+
+            new_password
+                .encrypt_password(&key)
+                .expect("Error encrypting password.");
+        } else {
+            println!("Saved password:\n{}", new_password);
         }
-        // Commands::Restore { file } => restore_backup(file),
-        Commands::CreateDatabase => {
-            create_new_save_file(&prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key.")).await;
+
+        new_password.save().await.expect("Error saving password.");
+    }
+
+    pub async fn load(place: Option<String>, all: bool) {
+        if all {
+            let key = ask_key().await;
+            let all_passwords = get_all_decrypted_passwords(&key).await;
+
+            println!("{}", display_passwords(&all_passwords));
+        } else {
+            let mut loaded_password = Password::from(place.unwrap()).await;
+
+            if loaded_password.is_encrypted() {
+                let key = ask_key().await;
+
+                loaded_password
+                    .decrypt_password(&key)
+                    .expect("Error decrypting password.");
+            }
+
+            println!("Password:\n{}", loaded_password);
         }
+    }
+
+    pub async fn delete(place: String) {
+        let password = Password::from(place).await;
+
+        println!("Selected password to delete:\n{}", &password);
+        let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ");
+
+        match confirmation.as_str() {
+            "y" => password.delete().await,
+            "n" => {
+                println!("Aborting");
+            }
+            other => {
+                println!("Did not recognize {}. Aborting", other);
+            }
+        };
     }
 }
 
