@@ -85,22 +85,16 @@ impl PasswordBuilder {
     }
 
     pub fn generate_password(options: PasswordBuildOptions) -> String {
-        let lowercase_chars = "abcdefghijklmnopqrstuvwxyz";
-        let digit_chars = "0123456789";
-        let special_chars = "!@#$%^&*()-_=+[]{}<>/?";
-
-        let mut char_set = String::new();
-
-        char_set.push_str(lowercase_chars);
+        let mut char_set = LOWERCASE_CHARACTERS.to_string();
 
         if options.use_upper {
-            char_set.push_str(lowercase_chars.to_uppercase().as_str());
+            char_set.push_str(LOWERCASE_CHARACTERS.to_uppercase().as_str());
         }
         if options.use_numbers {
-            char_set.push_str(digit_chars);
+            char_set.push_str(NUMBERS);
         }
         if options.use_special {
-            char_set.push_str(special_chars);
+            char_set.push_str(SPECIAL_CHARACTERS);
         }
 
         let mut result = String::new();
