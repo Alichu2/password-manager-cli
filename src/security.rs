@@ -1,5 +1,6 @@
-use crate::consts::{CONF_ACCESS_CHECK, HASH_COST};
+use crate::consts::HASH_COST;
 use crate::database::manager::get_sqlite_connection;
+use crate::objects::query_results::ConfigParams;
 use anyhow::Result;
 use bcrypt::hash;
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
@@ -29,7 +30,7 @@ pub fn decrypt(ciphertext: &str, key: &str) -> Result<String> {
 pub async fn save_new_key(key: String) {
     let hashed_key = hash(&key, HASH_COST).unwrap();
     let query = sqlx::query("INSERT INTO config (name, value) VALUES (?, ?);")
-        .bind(CONF_ACCESS_CHECK)
+        .bind(ConfigParams::AccessCheck)
         .bind(&hashed_key);
     let mut database_connection = get_sqlite_connection().await;
 

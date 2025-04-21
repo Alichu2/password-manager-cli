@@ -1,10 +1,12 @@
 use crate::{
-    consts::{ConfigParams, FAIL_KEY_ASK, FIRST_KEY_ASK},
+    consts::{FAIL_KEY_ASK, FIRST_KEY_ASK},
     database::queries,
 };
 use anyhow::Result;
 use bcrypt::verify;
 use rpassword::prompt_password;
+
+use super::query_results::ConfigParams;
 
 pub struct InputKey {
     key: Option<String>,
