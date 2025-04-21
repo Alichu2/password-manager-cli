@@ -1,7 +1,5 @@
 use clap::{Parser, Subcommand};
 use password_manager::password_operator::Password;
-use password_manager::security::verify_key;
-use rpassword::prompt_password;
 
 use std::io::stdin;
 
@@ -121,7 +119,8 @@ async fn main() {
 mod commands {
     use password_manager::{
         backups::create_backup,
-        database::create_new_save_file,
+        database::manager::create_new_save_file,
+        objects::input_key::InputKey,
         password_operator::{
             get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
         },
@@ -131,14 +130,15 @@ mod commands {
 
     use crate::display_passwords;
 
-    use super::{ask_key, ask_question};
+    use super::ask_question;
 
     pub async fn backup() {
-        let key = ask_key().await;
+        let mut key = InputKey::new_pre_ask().expect("Error getting key.");
+        let verified_key = key.get_key().await.expect("Error loading key.");
         let mut current_dir = env::current_dir().unwrap();
 
         // TODO: Why does current_dir need to be mutuable?
-        create_backup(&mut current_dir, &key).await;
+        create_backup(&mut current_dir, &verified_key).await;
     }
 
     pub async fn create_database() {
@@ -173,11 +173,12 @@ mod commands {
             let mut new_password = password_builder.to_password();
 
             if !no_encrypt {
-                let key = ask_key().await;
+                let mut key = InputKey::new_pre_ask().expect("Error getting key.");
+                let verified_key = key.get_key().await.expect("Error loading key.");
 
                 println!("Generated Password:\n{}", new_password);
 
-                new_password.encrypt_password(&key).unwrap();
+                new_password.encrypt_password(&verified_key).unwrap();
             } else {
                 println!("Generated Password:\n{}", new_password);
             }
@@ -191,12 +192,13 @@ mod commands {
         let mut new_password = Password::new(username, place, password);
 
         if !no_encrypt {
-            let key = ask_key().await;
+            let mut key = InputKey::new_pre_ask().expect("Error getting key.");
+            let verified_key = key.get_key().await.expect("Error loading key.");
 
             println!("Saved password:\n{}", new_password);
 
             new_password
-                .encrypt_password(&key)
+                .encrypt_password(&verified_key)
                 .expect("Error encrypting password.");
         } else {
             println!("Saved password:\n{}", new_password);
@@ -206,19 +208,20 @@ mod commands {
     }
 
     pub async fn load(place: Option<String>, all: bool) {
+        let mut key = InputKey::new();
         if all {
-            let key = ask_key().await;
-            let all_passwords = get_all_decrypted_passwords(&key).await;
+            let valid_key = key.get_key().await.expect("Error getting key.");
+            let all_passwords = get_all_decrypted_passwords(&valid_key).await;
 
             println!("{}", display_passwords(&all_passwords));
         } else {
             let mut loaded_password = Password::from(place.unwrap()).await;
 
             if loaded_password.is_encrypted() {
-                let key = ask_key().await;
+                let valid_key = key.get_key().await.expect("Error getting key.");
 
                 loaded_password
-                    .decrypt_password(&key)
+                    .decrypt_password(&valid_key)
                     .expect("Error decrypting password.");
             }
 
@@ -253,16 +256,6 @@ pub fn ask_question(question: &str) -> String {
         .expect("Error reading input.");
 
     answer.trim().to_string()
-}
-
-async fn ask_key() -> String {
-    let mut key = String::new();
-
-    while !verify_key(&key).await {
-        key = prompt_password("Enter your key: ").expect("Error reading secret.");
-    }
-
-    key
 }
 
 pub fn display_passwords(passwords: &Vec<Password>) -> String {

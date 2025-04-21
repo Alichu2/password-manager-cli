@@ -5,7 +5,7 @@ use std::fmt;
 use std::process::exit;
 
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
-use crate::database::get_sqlite_connection;
+use crate::database::manager::get_sqlite_connection;
 use crate::security::{decrypt, encrypt};
 
 #[derive(sqlx::FromRow, Clone)]

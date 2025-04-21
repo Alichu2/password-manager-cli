@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 #[allow(unused_imports)]
 use dirs::home_dir;
+#[allow(unused_imports)]
 use std::process::exit;
 
 #[cfg(not(debug_assertions))]
