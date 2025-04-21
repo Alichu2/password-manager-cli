@@ -1,12 +1,13 @@
 use crate::{
-    consts::{FAIL_KEY_ASK, FIRST_KEY_ASK},
-    database::queries,
+    consts::{FAIL_KEY_ASK, FIRST_KEY_ASK, HASH_COST},
+    database::{manager::get_sqlite_connection, queries},
 };
 use anyhow::Result;
+use bcrypt::hash;
 use bcrypt::verify;
 use rpassword::prompt_password;
 
-use super::query_results::ConfigParams;
+use super::query_results::{ConfigItem, ConfigParams};
 
 pub struct InputKey {
     key: Option<String>,
@@ -62,8 +63,28 @@ impl InputKey {
         Ok(is_valid)
     }
 
-    pub async fn save() -> Result<()> {
-        todo!();
+    pub async fn save(&mut self, force: bool) -> Result<()> {
+        let hash = Self::hashed_asked_key()?;
+        let setting = ConfigItem {
+            name: ConfigParams::AccessCheck,
+            value: hash,
+        };
+        let mut conn = get_sqlite_connection().await;
+
+        if force {
+            queries::force_set_setting(setting, &mut conn).await?;
+        } else {
+            queries::set_setting(setting, &mut conn).await?;
+        }
+
+        Ok(())
+    }
+
+    fn hashed_asked_key() -> Result<String> {
+        let key = Self::ask_key(false)?;
+        let hash = hash(key, HASH_COST)?;
+
+        Ok(hash)
     }
 
     pub async fn saved_key_exists() -> Result<bool> {
