@@ -22,7 +22,7 @@ pub async fn save_key<R: BufRead, W: Write>(
             key = entered_key;
             break;
         } else {
-            writeln!(write, "{}", ERROR_CONFIRMING_KEY);
+            writeln!(write, "{}", ERROR_CONFIRMING_KEY)?;
         }
     }
 
@@ -49,7 +49,7 @@ pub async fn ask_valid_key<R: BufRead, W: Write>(
         if verify(&key, &setting.value)? {
             return Ok(key);
         } else {
-            write!(write, "{}", WRONG_KEY);
+            write!(write, "{}", WRONG_KEY)?;
         }
     }
 }

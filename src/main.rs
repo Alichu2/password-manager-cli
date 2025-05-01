@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
-use password_manager::password_operator::Password;
+use password_manager::{database::queries::DatabaseInterface, password_operator::Password};
 
-use std::io::stdin;
+use std::io::{stdin, stdout, StdinLock, StdoutLock};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -120,26 +120,22 @@ mod commands {
     use password_manager::{
         backups::create_backup,
         database::manager::create_new_save_file,
-        objects::input_key::ask_valid_key,
         password_operator::{
             get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
         },
+        user_functions::ask_valid_key,
     };
     use rpassword::prompt_password;
-    use std::{
-        env,
-        io::{stdin, stdout},
-    };
+    use std::env;
 
-    use crate::display_passwords;
+    use crate::{display_passwords, init};
 
     use super::ask_question;
 
     pub async fn backup() {
-        let mut read = stdin().lock();
-        let mut write = stdout().lock();
+        let (mut read, mut write, mut interface) = init().await;
 
-        let key = ask_valid_key(&mut read, &mut write)
+        let key = ask_valid_key(&mut interface, &mut read, &mut write)
             .await
             .expect("Error getting key.");
         let mut current_dir = env::current_dir().unwrap();
@@ -180,10 +176,9 @@ mod commands {
             let mut new_password = password_builder.to_password();
 
             if !no_encrypt {
-                let mut read = stdin().lock();
-                let mut write = stdout().lock();
+                let (mut read, mut write, mut interface) = init().await;
 
-                let key = ask_valid_key(&mut read, &mut write)
+                let key = ask_valid_key(&mut interface, &mut read, &mut write)
                     .await
                     .expect("Error getting key.");
 
@@ -203,10 +198,9 @@ mod commands {
         let mut new_password = Password::new(username, place, password);
 
         if !no_encrypt {
-            let mut read = stdin().lock();
-            let mut write = stdout().lock();
+            let (mut read, mut write, mut interface) = init().await;
 
-            let key = ask_valid_key(&mut read, &mut write)
+            let key = ask_valid_key(&mut interface, &mut read, &mut write)
                 .await
                 .expect("Error getting key.");
 
@@ -223,11 +217,10 @@ mod commands {
     }
 
     pub async fn load(place: Option<String>, all: bool) {
-        let mut read = stdin().lock();
-        let mut write = stdout().lock();
+        let (mut read, mut write, mut interface) = init().await;
 
         if all {
-            let valid_key = ask_valid_key(&mut read, &mut write)
+            let valid_key = ask_valid_key(&mut interface, &mut read, &mut write)
                 .await
                 .expect("Error getting key.");
             let all_passwords = get_all_decrypted_passwords(&valid_key).await;
@@ -237,7 +230,7 @@ mod commands {
             let mut loaded_password = Password::from(place.unwrap()).await;
 
             if loaded_password.is_encrypted() {
-                let valid_key = ask_valid_key(&mut read, &mut write)
+                let valid_key = ask_valid_key(&mut interface, &mut read, &mut write)
                     .await
                     .expect("Error getting key.");
 
@@ -287,4 +280,12 @@ pub fn display_passwords(passwords: &Vec<Password>) -> String {
     }
 
     result
+}
+
+pub async fn init() -> (StdinLock<'static>, StdoutLock<'static>, DatabaseInterface) {
+    let read = stdin().lock();
+    let write = stdout().lock();
+    let interface = DatabaseInterface::new().await;
+
+    (read, write, interface)
 }

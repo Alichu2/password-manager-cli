@@ -4,3 +4,4 @@ pub mod database;
 pub mod objects;
 pub mod password_operator;
 pub mod security;
+pub mod user_functions;
