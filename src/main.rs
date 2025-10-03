@@ -39,7 +39,7 @@ enum Commands {
         #[arg(short, long)]
         no_encrypt: bool,
         /// List of characters that should be excluded from the password.
-        #[arg(short, long)]
+        #[arg(short, long, default_value_t = String::new())]
         exclude: String,
     },
     /// Add a new password to the database.
