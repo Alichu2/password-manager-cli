@@ -1,11 +1,9 @@
-use anyhow::{bail, Result};
-use rand::prelude::IteratorRandom;
-use sqlx::Executor;
+use rand::seq::SliceRandom;
 use std::fmt;
-use std::process::exit;
 
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
-use crate::database::manager::get_sqlite_connection;
+use crate::database::queries::DatabaseInterface;
+use crate::errors::Error;
 use crate::security::{decrypt, encrypt};
 
 #[derive(sqlx::FromRow, Clone)]
@@ -22,12 +20,13 @@ pub struct PasswordBuilder {
     options: PasswordBuildOptions,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct PasswordBuildOptions {
     pub length: usize,
     pub use_special: bool,
     pub use_numbers: bool,
     pub use_upper: bool,
+    pub exclude_char: Vec<char>,
 }
 
 impl PasswordBuilder {
@@ -39,52 +38,7 @@ impl PasswordBuilder {
         }
     }
 
-    pub fn to_password(&self) -> Password {
-        let password = Self::generate_valid_password(self.options);
-
-        Password::new(self.username.clone(), self.place.clone(), password)
-    }
-
-    pub fn generate_valid_password(options: PasswordBuildOptions) -> String {
-        let mut password = String::new();
-        let mut correct = false;
-
-        while !correct {
-            password = Self::generate_password(options);
-            correct = Self::verify_password(options, &password);
-        }
-
-        password
-    }
-
-    pub fn verify_password(options: PasswordBuildOptions, password: &str) -> bool {
-        let mut is_not_correct = false;
-        is_not_correct = is_not_correct || !(password.len() == options.length);
-        if options.use_special {
-            is_not_correct = is_not_correct || !Self::contains_char(SPECIAL_CHARACTERS, password);
-        }
-        if options.use_numbers {
-            is_not_correct = is_not_correct || !Self::contains_char(NUMBERS, password);
-        }
-        if options.use_upper {
-            is_not_correct = is_not_correct
-                || !Self::contains_char(&LOWERCASE_CHARACTERS.to_uppercase(), password);
-        }
-
-        !is_not_correct
-    }
-
-    fn contains_char(charset: &str, text: &str) -> bool {
-        for char in charset.chars() {
-            if text.contains(char) {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    pub fn generate_password(options: PasswordBuildOptions) -> String {
+    fn build_charset(options: &PasswordBuildOptions) -> Vec<char> {
         let mut char_set = LOWERCASE_CHARACTERS.to_string();
 
         if options.use_upper {
@@ -97,13 +51,18 @@ impl PasswordBuilder {
             char_set.push_str(SPECIAL_CHARACTERS);
         }
 
+        char_set
+            .chars()
+            .filter(|char| !options.exclude_char.contains(char))
+            .collect::<Vec<_>>()
+    }
+
+    pub fn generate_password(options: PasswordBuildOptions) -> String {
+        let char_set = Self::build_charset(&options);
         let mut result = String::new();
 
         for _ in 0..options.length {
-            let next_char: char = char_set
-                .chars()
-                .choose(&mut rand::thread_rng())
-                .expect("Could not generate password (Error Rand Select).");
+            let next_char = char_set.choose(&mut rand::thread_rng()).unwrap();
 
             result.push_str(next_char.to_string().as_str());
         }
@@ -112,14 +71,20 @@ impl PasswordBuilder {
     }
 }
 
+impl Into<Password> for PasswordBuilder {
+    fn into(self) -> Password {
+        let password = PasswordBuilder::generate_password(self.options);
+
+        Password::new(self.username, self.place, password)
+    }
+}
+
 impl fmt::Display for Password {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "\tpalce = {}\n\tusername = {}\n\tpassword = {}",
-            self.place,
-            self.username,
-            self.password.clone()
+            self.place, self.username, self.password
         )
     }
 }
@@ -134,20 +99,13 @@ impl Password {
         }
     }
 
-    pub async fn from(place: String) -> Self {
-        let db_conn = get_sqlite_connection();
+    pub async fn from(place: String, conn: &mut DatabaseInterface) -> Result<Self, Error> {
+        let password = conn.get_password(&place).await?;
 
-        let possibilities = sqlx::query_as::<_, Self>("SELECT * FROM passwords WHERE place = ?;")
-            .bind(&place)
-            .fetch_all(&mut db_conn.await)
-            .await
-            .expect("Error reading password from database.");
-
-        if possibilities.len() == 0 {
-            println!("No passwords found.");
-            exit(0);
+        if password.len() == 0 {
+            Err(Error::NoPassword(place))
         } else {
-            possibilities[0].clone()
+            Ok(password.into_iter().nth(0).unwrap())
         }
     }
 
@@ -155,74 +113,40 @@ impl Password {
         self.encrypted == 1
     }
 
-    pub fn decrypt_password(&mut self, key: &str) -> Result<()> {
+    pub fn decrypt_password(&mut self, key: &str) -> Result<(), Error> {
         if self.is_encrypted() {
             self.password = decrypt(&self.password, key)?;
             self.encrypted = 0;
-        } else {
-            bail!("Attempting to decrypt an already decrypted password. Ignoring.")
         }
 
         Ok(())
     }
 
-    pub fn encrypt_password(&mut self, key: &str) -> Result<()> {
+    pub fn encrypt_password(&mut self, key: &str) {
         if !self.is_encrypted() {
             self.password = encrypt(&self.password, key);
             self.encrypted = 1;
-        } else {
-            bail!("Attempting to decrypt an already decrypted password. Ignoring.")
         }
-
-        Ok(())
     }
 
-    pub fn to_csv_row(&mut self) -> String {
-        format!(
-            "{},{},{}\n",
-            self.place,
-            self.username,
-            self.password.clone()
-        )
+    pub fn to_csv_row(&self) -> String {
+        format!("{},{},{}\n", self.place, self.username, self.password)
     }
 
-    pub async fn delete(&self) {
-        let mut db_conn = get_sqlite_connection().await;
-
-        db_conn
-            .execute(sqlx::query("DELETE FROM passwords WHERE place = ?;").bind(&self.place))
-            .await
-            .expect("Error deleting password.");
+    pub async fn delete(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
+        conn.delete_password(&self.place).await
     }
 
-    pub async fn save(&self) -> Result<()> {
-        let mut db_conn = get_sqlite_connection().await;
-
-        db_conn.execute(
-            sqlx::query("INSERT INTO passwords (place, password, username, encrypted) VALUES (?, ?, ?, ?);")
-                .bind(&self.place)
-                .bind(&self.password)
-                .bind(&self.username)
-                .bind(self.encrypted))
-        .await?;
-
-        Ok(())
+    pub async fn save(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
+        conn.delete_password(&self.place).await
     }
 }
 
-pub async fn get_all_passwords() -> Vec<Password> {
-    let mut db_conn = get_sqlite_connection().await;
-
-    let passwords = sqlx::query_as::<_, Password>("SELECT * FROM passwords;")
-        .fetch_all(&mut db_conn)
-        .await
-        .expect("Error reading passwords from database.");
-
-    passwords
-}
-
-pub async fn get_all_decrypted_passwords(key: &str) -> Vec<Password> {
-    let mut all_passwords = get_all_passwords().await;
+pub async fn get_all_decrypted_passwords(
+    key: &str,
+    conn: &mut DatabaseInterface,
+) -> Result<Vec<Password>, Error> {
+    let mut all_passwords = conn.get_all_passwords().await?;
 
     for password in all_passwords.iter_mut() {
         if password.is_encrypted() {
@@ -232,5 +156,5 @@ pub async fn get_all_decrypted_passwords(key: &str) -> Vec<Password> {
         }
     }
 
-    all_passwords
+    Ok(all_passwords)
 }

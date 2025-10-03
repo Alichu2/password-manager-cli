@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
-use password_manager::{database::queries::DatabaseInterface, password_operator::Password};
+use password_manager::{errors::Error, password_operator::Password};
 
-use std::io::{stdin, stdout, StdinLock, StdoutLock};
+use std::io::stdin;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -38,6 +38,9 @@ enum Commands {
         /// Should the password be encrypted if saved.
         #[arg(short, long)]
         no_encrypt: bool,
+        /// List of characters that should be excluded from the password.
+        #[arg(short, long)]
+        exclude: String,
     },
     /// Add a new password to the database.
     Add {
@@ -90,27 +93,30 @@ async fn main() {
             place,
             username,
             no_encrypt,
-        } => {
-            commands::generate(
-                save,
-                length,
-                no_special,
-                no_uppercase,
-                no_numbers,
-                place,
-                username,
-                no_encrypt,
-            )
-            .await
-        }
-        Commands::Load { place, all } => commands::load(place, all).await,
+            exclude,
+        } => commands::generate(
+            save,
+            length,
+            no_special,
+            no_uppercase,
+            no_numbers,
+            place,
+            username,
+            no_encrypt,
+            exclude,
+        )
+        .await
+        .unwrap(),
+        Commands::Load { place, all } => commands::load(place, all).await.unwrap(),
         Commands::Add {
             place,
             username,
             no_encrypt,
-        } => commands::add_password(place, username, no_encrypt).await,
-        Commands::Delete { place } => commands::delete(place).await,
-        Commands::Backup => commands::backup().await,
+        } => commands::add_password(place, username, no_encrypt)
+            .await
+            .unwrap(),
+        Commands::Delete { place } => commands::delete(place).await.unwrap(),
+        Commands::Backup => commands::backup().await.unwrap(),
         // Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => commands::create_database().await,
     }
@@ -119,7 +125,8 @@ async fn main() {
 mod commands {
     use password_manager::{
         backups::create_backup,
-        database::manager::create_new_save_file,
+        database::{manager::create_new_save_file, queries::DatabaseInterface},
+        errors::Error,
         password_operator::{
             get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
         },
@@ -128,20 +135,19 @@ mod commands {
     use rpassword::prompt_password;
     use std::env;
 
-    use crate::{display_passwords, init};
+    use crate::display_passwords;
 
     use super::ask_question;
 
-    pub async fn backup() {
-        let (mut read, mut write, mut interface) = init().await;
+    pub async fn backup() -> Result<(), Error> {
+        let mut conn = DatabaseInterface::new().await;
 
-        let key = ask_valid_key(&mut interface, &mut read, &mut write)
-            .await
-            .expect("Error getting key.");
-        let mut current_dir = env::current_dir().unwrap();
+        let key = ask_valid_key(&mut conn).await.expect("Error getting key.");
+        let current_dir = env::current_dir().unwrap();
 
-        // TODO: Why does current_dir need to be mutuable?
-        create_backup(&mut current_dir, &key).await;
+        create_backup(&current_dir, &key, &mut conn).await?;
+
+        Ok(())
     }
 
     pub async fn create_database() {
@@ -159,12 +165,14 @@ mod commands {
         place: Option<String>,
         username: Option<String>,
         no_encrypt: bool,
-    ) {
+        exclude: String,
+    ) -> Result<(), Error> {
         let options = PasswordBuildOptions {
             length,
             use_special: !no_special,
             use_upper: !no_uppercase,
             use_numbers: !no_numbers,
+            exclude_char: exclude.chars().collect::<Vec<_>>(),
         };
 
         if !save {
@@ -173,103 +181,101 @@ mod commands {
         } else {
             let password_builder =
                 PasswordBuilder::from(username.unwrap(), place.unwrap(), options);
-            let mut new_password = password_builder.to_password();
+            let mut new_password: Password = password_builder.into();
+            let mut conn = DatabaseInterface::new().await;
 
             if !no_encrypt {
-                let (mut read, mut write, mut interface) = init().await;
-
-                let key = ask_valid_key(&mut interface, &mut read, &mut write)
-                    .await
-                    .expect("Error getting key.");
+                let key = ask_valid_key(&mut conn).await?;
 
                 println!("Generated Password:\n{}", new_password);
 
-                new_password.encrypt_password(&key).unwrap();
+                new_password.encrypt_password(&key);
             } else {
                 println!("Generated Password:\n{}", new_password);
             }
 
-            new_password.save().await.unwrap();
+            new_password.save(&mut conn).await?;
         }
+        Ok(())
     }
 
-    pub async fn add_password(place: String, username: String, no_encrypt: bool) {
-        let password = ask_question("Enter password you desire to save:\n");
+    pub async fn add_password(
+        place: String,
+        username: String,
+        no_encrypt: bool,
+    ) -> Result<(), Error> {
+        let password = ask_question("Enter password you desire to save:\n")?;
         let mut new_password = Password::new(username, place, password);
+        let mut conn = DatabaseInterface::new().await;
 
         if !no_encrypt {
-            let (mut read, mut write, mut interface) = init().await;
-
-            let key = ask_valid_key(&mut interface, &mut read, &mut write)
-                .await
-                .expect("Error getting key.");
+            let key = ask_valid_key(&mut conn).await?;
 
             println!("Saved password:\n{}", new_password);
 
-            new_password
-                .encrypt_password(&key)
-                .expect("Error encrypting password.");
+            new_password.encrypt_password(&key);
         } else {
             println!("Saved password:\n{}", new_password);
         }
 
-        new_password.save().await.expect("Error saving password.");
+        new_password.save(&mut conn).await?;
+
+        Ok(())
     }
 
-    pub async fn load(place: Option<String>, all: bool) {
-        let (mut read, mut write, mut interface) = init().await;
+    pub async fn load(place: Option<String>, all: bool) -> Result<(), Error> {
+        let mut conn = DatabaseInterface::new().await;
 
         if all {
-            let valid_key = ask_valid_key(&mut interface, &mut read, &mut write)
-                .await
-                .expect("Error getting key.");
-            let all_passwords = get_all_decrypted_passwords(&valid_key).await;
+            let valid_key = ask_valid_key(&mut conn).await?;
+            let all_passwords = get_all_decrypted_passwords(&valid_key, &mut conn).await?;
 
             println!("{}", display_passwords(&all_passwords));
         } else {
-            let mut loaded_password = Password::from(place.unwrap()).await;
+            let mut loaded_password = Password::from(place.unwrap(), &mut conn).await?;
 
             if loaded_password.is_encrypted() {
-                let valid_key = ask_valid_key(&mut interface, &mut read, &mut write)
-                    .await
-                    .expect("Error getting key.");
+                let valid_key = ask_valid_key(&mut conn).await?;
 
-                loaded_password
-                    .decrypt_password(&valid_key)
-                    .expect("Error decrypting password.");
+                loaded_password.decrypt_password(&valid_key)?;
             }
 
             println!("Password:\n{}", loaded_password);
         }
+
+        Ok(())
     }
 
-    pub async fn delete(place: String) {
-        let password = Password::from(place).await;
+    pub async fn delete(place: String) -> Result<(), Error> {
+        let mut conn = DatabaseInterface::new().await;
+        let password = Password::from(place, &mut conn).await?;
 
         println!("Selected password to delete:\n{}", &password);
-        let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ");
+        let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ")?;
 
         match confirmation.as_str() {
-            "y" => password.delete().await,
+            "y" => password.delete(&mut conn).await?,
             "n" => {
-                println!("Aborting");
+                println!("Operation cancelled.");
             }
             other => {
                 println!("Did not recognize {}. Aborting", other);
             }
         };
+
+        Ok(())
     }
 }
 
-pub fn ask_question(question: &str) -> String {
+pub fn ask_question(question: &str) -> Result<String, Error> {
     let mut answer = String::new();
 
     print!("{}", question);
     stdin()
         .read_line(&mut answer)
-        .expect("Error reading input.");
+        .map_err(|_| Error::ReadError)?;
 
-    answer.trim().to_string()
+    Ok(answer.trim().to_string())
 }
 
 pub fn display_passwords(passwords: &Vec<Password>) -> String {
@@ -280,12 +286,4 @@ pub fn display_passwords(passwords: &Vec<Password>) -> String {
     }
 
     result
-}
-
-pub async fn init() -> (StdinLock<'static>, StdoutLock<'static>, DatabaseInterface) {
-    let read = stdin().lock();
-    let write = stdout().lock();
-    let interface = DatabaseInterface::new().await;
-
-    (read, write, interface)
 }

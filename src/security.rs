@@ -1,7 +1,6 @@
-use crate::consts::HASH_COST;
 use crate::database::manager::get_sqlite_connection;
 use crate::objects::query_results::ConfigParams;
-use anyhow::Result;
+use crate::{consts::HASH_COST, errors::Error};
 use bcrypt::hash;
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 use sqlx::Executor;
@@ -15,16 +14,15 @@ struct ConfigItem {
 
 pub fn encrypt(plaintext: &str, key: &str) -> String {
     let mc = new_magic_crypt!(key, 256);
-    let encryted = mc.encrypt_str_to_base64(plaintext);
 
-    encryted
+    mc.encrypt_str_to_base64(plaintext)
 }
 
-pub fn decrypt(ciphertext: &str, key: &str) -> Result<String> {
+pub fn decrypt(ciphertext: &str, key: &str) -> Result<String, Error> {
     let mc = new_magic_crypt!(key, 256);
-    let decrypted = mc.decrypt_base64_to_string(ciphertext)?;
 
-    Ok(decrypted)
+    mc.decrypt_base64_to_string(ciphertext)
+        .map_err(|err| Error::BadDecryption(err))
 }
 
 pub async fn save_new_key(key: String) {

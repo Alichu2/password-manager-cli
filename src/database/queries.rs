@@ -60,7 +60,7 @@ impl DatabaseInterface {
         Ok(())
     }
 
-    pub async fn load_password(&mut self, place: &str) -> Result<Vec<Password>, Error> {
+    pub async fn get_password(&mut self, place: &str) -> Result<Vec<Password>, Error> {
         sqlx::query_as::<_, Password>("SELECT * FROM passwords WHERE place = ?;")
             .bind(place)
             .fetch_all(&mut self.connection)

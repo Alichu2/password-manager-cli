@@ -1,28 +1,23 @@
-use anyhow::Result;
 use bcrypt::verify;
-use rpassword::prompt_password_from_bufread;
-use std::io::{BufRead, Write};
+use rpassword::prompt_password;
 
 use crate::consts::communications::{CONFIRM_KEY, ENTER_KEY, ERROR_CONFIRMING_KEY, WRONG_KEY};
 use crate::database::queries::DatabaseInterface;
+use crate::errors::Error;
 use crate::objects::query_results::{ConfigItem, ConfigParams};
 
-pub async fn save_key<R: BufRead, W: Write>(
-    conn: &mut DatabaseInterface,
-    read: &mut R,
-    write: &mut W,
-) -> Result<()> {
+pub async fn save_key(conn: &mut DatabaseInterface) -> Result<(), Error> {
     let key: String;
 
     loop {
-        let entered_key = prompt_password_from_bufread(read, write, ENTER_KEY)?;
-        let confirmation_key = prompt_password_from_bufread(read, write, CONFIRM_KEY)?;
+        let entered_key = prompt_password(ENTER_KEY).map_err(|_| Error::ReadError)?;
+        let confirmation_key = prompt_password(CONFIRM_KEY).map_err(|_| Error::ReadError)?;
 
         if entered_key == confirmation_key {
             key = entered_key;
             break;
         } else {
-            writeln!(write, "{}", ERROR_CONFIRMING_KEY)?;
+            println!("{}", ERROR_CONFIRMING_KEY);
         }
     }
 
@@ -36,20 +31,17 @@ pub async fn save_key<R: BufRead, W: Write>(
     Ok(())
 }
 
-pub async fn ask_valid_key<R: BufRead, W: Write>(
-    conn: &mut DatabaseInterface,
-    read: &mut R,
-    write: &mut W,
-) -> Result<String> {
+pub async fn ask_valid_key(conn: &mut DatabaseInterface) -> Result<String, Error> {
     let setting = conn.get_setting(ConfigParams::AccessCheck).await?;
 
     loop {
-        let key = prompt_password_from_bufread(read, write, ENTER_KEY)?;
+        let key = prompt_password(ENTER_KEY).map_err(|_| Error::ReadError)?;
+        let verification = verify(&key, &setting.value).map_err(|_| Error::VerificationError)?;
 
-        if verify(&key, &setting.value)? {
+        if verification {
             return Ok(key);
         } else {
-            write!(write, "{}", WRONG_KEY)?;
+            println!("{}", WRONG_KEY);
         }
     }
 }
