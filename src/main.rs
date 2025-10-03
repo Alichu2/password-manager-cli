@@ -168,8 +168,8 @@ mod commands {
         let places = conn
             .get_all_passwords()
             .await?
-            .iter()
-            .map(|password| password.place.clone())
+            .into_iter()
+            .map(|password| password.place)
             .collect::<Vec<_>>();
 
         println!("{}", places.join("\n"));
