@@ -99,4 +99,24 @@ impl DatabaseInterface {
             .await
             .map_err(|err| Error::DatabaseError(err))
     }
+
+    pub async fn list_tables(&mut self) -> Result<Vec<String>, Error> {
+        let row: Vec<(String,)> =
+            sqlx::query_as("SELECT name FROM sqlite_master WHERE type='table';")
+                .fetch_all(&mut self.connection)
+                .await
+                .map_err(|err| Error::DatabaseError(err))?;
+
+        Ok(row.into_iter().map(|v| v.0).collect::<Vec<String>>())
+    }
+
+    pub async fn has_setting(&mut self, setting: ConfigParams) -> Result<bool, Error> {
+        let result: Vec<(i8,)> = sqlx::query_as("SELECT 1 FROM config WHERE name = ?;")
+            .bind(setting)
+            .fetch_all(&mut self.connection)
+            .await
+            .map_err(|err| Error::DatabaseError(err))?;
+
+        Ok(result.len() >= 1)
+    }
 }

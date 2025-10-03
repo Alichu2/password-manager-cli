@@ -1,3 +1,4 @@
+use crate::database::objects::ConfigParams;
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
 use crate::security::save_new_key;
@@ -65,4 +66,25 @@ pub async fn create_save_file() -> Result<(), Error> {
     conn.create_password_table().await?;
 
     Ok(())
+}
+
+pub async fn has_correct_tables(conn: &mut DatabaseInterface) -> Result<bool, Error> {
+    let tables = conn.list_tables().await?;
+
+    Ok(tables.contains(&String::from("passwords")) && tables.contains(&String::from("config")))
+}
+
+pub async fn has_key(conn: &mut DatabaseInterface) -> Result<bool, Error> {
+    conn.has_setting(ConfigParams::AccessCheck).await
+}
+
+pub async fn get_validated_conn() -> Result<DatabaseInterface, Error> {
+    if get_save_file_path().exists() {
+        let mut conn = DatabaseInterface::new().await?;
+
+        if has_correct_tables(&mut conn).await? && has_key(&mut conn).await? {
+            return Ok(conn);
+        }
+    }
+    Err(Error::MissingDatabase)
 }

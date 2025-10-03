@@ -3,6 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Could not find a valid database. Perhaps you forgot to generate it?")]
+    MissingDatabase,
     #[error("Save file and key already exists. Cannot regenerate.")]
     SaveFileExists,
     #[error("Cannot create save directory.")]
@@ -15,7 +17,7 @@ pub enum Error {
     BadDecryption(#[from] MagicCryptError),
     #[error("Could not find a password for the place {0}.")]
     NoPassword(String),
-    #[error("Error performing database action.")]
+    #[error("Error performing database action ({0}).")]
     DatabaseError(#[from] sqlx::Error),
     #[error("Ran into an unexpected issue: {0}")]
     Other(String),

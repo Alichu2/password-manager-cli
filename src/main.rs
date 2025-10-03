@@ -126,7 +126,7 @@ async fn main() {
 mod commands {
     use password_manager::{
         backups::create_backup,
-        database::{queries::DatabaseInterface, utils::create_new_save_file},
+        database::utils::{create_new_save_file, get_validated_conn},
         errors::Error,
         password_operator::{
             get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
@@ -141,7 +141,7 @@ mod commands {
     use super::ask_question;
 
     pub async fn backup() -> Result<(), Error> {
-        let mut conn = DatabaseInterface::new().await?;
+        let mut conn = get_validated_conn().await?;
 
         let key = ask_valid_key(&mut conn).await.expect("Error getting key.");
         let current_dir = env::current_dir().unwrap();
@@ -185,7 +185,7 @@ mod commands {
             let password_builder =
                 PasswordBuilder::from(username.unwrap(), place.unwrap(), options);
             let mut new_password: Password = password_builder.into();
-            let mut conn = DatabaseInterface::new().await?;
+            let mut conn = get_validated_conn().await?;
 
             if !no_encrypt {
                 let key = ask_valid_key(&mut conn).await?;
@@ -209,7 +209,7 @@ mod commands {
     ) -> Result<(), Error> {
         let password = ask_question("Enter password you desire to save:\n")?;
         let mut new_password = Password::new(username, place, password);
-        let mut conn = DatabaseInterface::new().await?;
+        let mut conn = get_validated_conn().await?;
 
         if !no_encrypt {
             let key = ask_valid_key(&mut conn).await?;
@@ -227,7 +227,7 @@ mod commands {
     }
 
     pub async fn load(place: Option<String>, all: bool) -> Result<(), Error> {
-        let mut conn = DatabaseInterface::new().await?;
+        let mut conn = get_validated_conn().await?;
 
         if all {
             let valid_key = ask_valid_key(&mut conn).await?;
@@ -250,7 +250,7 @@ mod commands {
     }
 
     pub async fn delete(place: String) -> Result<(), Error> {
-        let mut conn = DatabaseInterface::new().await?;
+        let mut conn = get_validated_conn().await?;
         let password = Password::from(place, &mut conn).await?;
 
         println!("Selected password to delete:\n{}", &password);
@@ -294,6 +294,6 @@ pub fn display_passwords(passwords: &Vec<Password>) -> String {
 pub fn pretty_error(result: Result<(), Error>) {
     match result {
         Ok(_) => (),
-        Err(err) => println!("Encounted an error: {err}"),
+        Err(err) => println!("Error: {err}"),
     }
 }
