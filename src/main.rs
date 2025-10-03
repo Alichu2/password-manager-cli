@@ -83,7 +83,7 @@ enum Commands {
 async fn main() {
     let cli = Cli::parse();
 
-    match cli.command {
+    let result = match cli.command {
         Commands::Generate {
             save,
             length,
@@ -94,32 +94,33 @@ async fn main() {
             username,
             no_encrypt,
             exclude,
-        } => commands::generate(
-            save,
-            length,
-            no_special,
-            no_uppercase,
-            no_numbers,
-            place,
-            username,
-            no_encrypt,
-            exclude,
-        )
-        .await
-        .unwrap(),
-        Commands::Load { place, all } => commands::load(place, all).await.unwrap(),
+        } => {
+            commands::generate(
+                save,
+                length,
+                no_special,
+                no_uppercase,
+                no_numbers,
+                place,
+                username,
+                no_encrypt,
+                exclude,
+            )
+            .await
+        }
+        Commands::Load { place, all } => commands::load(place, all).await,
         Commands::Add {
             place,
             username,
             no_encrypt,
-        } => commands::add_password(place, username, no_encrypt)
-            .await
-            .unwrap(),
-        Commands::Delete { place } => commands::delete(place).await.unwrap(),
-        Commands::Backup => commands::backup().await.unwrap(),
+        } => commands::add_password(place, username, no_encrypt).await,
+        Commands::Delete { place } => commands::delete(place).await,
+        Commands::Backup => commands::backup().await,
         // Commands::Restore { file } => restore_backup(file),
-        Commands::CreateDatabase => commands::create_database().await.unwrap(),
-    }
+        Commands::CreateDatabase => commands::create_database().await,
+    };
+
+    pretty_error(result);
 }
 
 mod commands {
@@ -288,4 +289,11 @@ pub fn display_passwords(passwords: &Vec<Password>) -> String {
     }
 
     result
+}
+
+pub fn pretty_error(result: Result<(), Error>) {
+    match result {
+        Ok(_) => (),
+        Err(err) => println!("Encounted an error: {err}"),
+    }
 }
