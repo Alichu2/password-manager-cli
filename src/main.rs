@@ -70,6 +70,8 @@ enum Commands {
     },
     /// Back the passwords up.
     Backup,
+    /// List all the saved places in the database.
+    List,
     // /// Restore passwords from a backup.
     // Restore {
     //     /// Restore file.
@@ -116,6 +118,7 @@ async fn main() {
         } => commands::add_password(place, username, no_encrypt).await,
         Commands::Delete { place } => commands::delete(place).await,
         Commands::Backup => commands::backup().await,
+        Commands::List => commands::list().await,
         // Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => commands::create_database().await,
     };
@@ -155,6 +158,21 @@ mod commands {
         let key = prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").map_err(|_| Error::ReadError)?;
 
         create_new_save_file(&key).await?;
+
+        Ok(())
+    }
+
+    pub async fn list() -> Result<(), Error> {
+        let mut conn = get_validated_conn().await?;
+
+        let places = conn
+            .get_all_passwords()
+            .await?
+            .iter()
+            .map(|password| password.place.clone())
+            .collect::<Vec<_>>();
+
+        println!("{}", places.join("\n"));
 
         Ok(())
     }
