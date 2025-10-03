@@ -1,8 +1,8 @@
 use sqlx::{self, SqliteConnection};
 
 use crate::{
+    database::objects::{ConfigItem, ConfigParams},
     errors::Error,
-    objects::query_results::{ConfigItem, ConfigParams},
     password_operator::Password,
 };
 

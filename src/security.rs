@@ -1,5 +1,5 @@
 use crate::database::manager::get_sqlite_connection;
-use crate::objects::query_results::ConfigParams;
+use crate::database::objects::ConfigParams;
 use crate::{consts::HASH_COST, errors::Error};
 use bcrypt::hash;
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};

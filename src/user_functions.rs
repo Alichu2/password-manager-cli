@@ -2,9 +2,9 @@ use bcrypt::verify;
 use rpassword::prompt_password;
 
 use crate::consts::communications::{CONFIRM_KEY, ENTER_KEY, ERROR_CONFIRMING_KEY, WRONG_KEY};
+use crate::database::objects::{ConfigItem, ConfigParams};
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
-use crate::objects::query_results::{ConfigItem, ConfigParams};
 
 pub async fn save_key(conn: &mut DatabaseInterface) -> Result<(), Error> {
     let key: String;
