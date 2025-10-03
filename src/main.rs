@@ -118,14 +118,14 @@ async fn main() {
         Commands::Delete { place } => commands::delete(place).await.unwrap(),
         Commands::Backup => commands::backup().await.unwrap(),
         // Commands::Restore { file } => restore_backup(file),
-        Commands::CreateDatabase => commands::create_database().await,
+        Commands::CreateDatabase => commands::create_database().await.unwrap(),
     }
 }
 
 mod commands {
     use password_manager::{
         backups::create_backup,
-        database::{manager::create_new_save_file, queries::DatabaseInterface},
+        database::{queries::DatabaseInterface, utils::create_new_save_file},
         errors::Error,
         password_operator::{
             get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
@@ -140,7 +140,7 @@ mod commands {
     use super::ask_question;
 
     pub async fn backup() -> Result<(), Error> {
-        let mut conn = DatabaseInterface::new().await;
+        let mut conn = DatabaseInterface::new().await?;
 
         let key = ask_valid_key(&mut conn).await.expect("Error getting key.");
         let current_dir = env::current_dir().unwrap();
@@ -150,10 +150,12 @@ mod commands {
         Ok(())
     }
 
-    pub async fn create_database() {
-        let key = prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").expect("Error reading your brand new key.");
+    pub async fn create_database() -> Result<(), Error> {
+        let key = prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").map_err(|_| Error::ReadError)?;
 
-        create_new_save_file(&key).await;
+        create_new_save_file(&key).await?;
+
+        Ok(())
     }
 
     pub async fn generate(
@@ -182,7 +184,7 @@ mod commands {
             let password_builder =
                 PasswordBuilder::from(username.unwrap(), place.unwrap(), options);
             let mut new_password: Password = password_builder.into();
-            let mut conn = DatabaseInterface::new().await;
+            let mut conn = DatabaseInterface::new().await?;
 
             if !no_encrypt {
                 let key = ask_valid_key(&mut conn).await?;
@@ -206,7 +208,7 @@ mod commands {
     ) -> Result<(), Error> {
         let password = ask_question("Enter password you desire to save:\n")?;
         let mut new_password = Password::new(username, place, password);
-        let mut conn = DatabaseInterface::new().await;
+        let mut conn = DatabaseInterface::new().await?;
 
         if !no_encrypt {
             let key = ask_valid_key(&mut conn).await?;
@@ -224,7 +226,7 @@ mod commands {
     }
 
     pub async fn load(place: Option<String>, all: bool) -> Result<(), Error> {
-        let mut conn = DatabaseInterface::new().await;
+        let mut conn = DatabaseInterface::new().await?;
 
         if all {
             let valid_key = ask_valid_key(&mut conn).await?;
@@ -247,7 +249,7 @@ mod commands {
     }
 
     pub async fn delete(place: String) -> Result<(), Error> {
-        let mut conn = DatabaseInterface::new().await;
+        let mut conn = DatabaseInterface::new().await?;
         let password = Password::from(place, &mut conn).await?;
 
         println!("Selected password to delete:\n{}", &password);

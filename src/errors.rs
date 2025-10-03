@@ -3,6 +3,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Save file and key already exists. Cannot regenerate.")]
+    SaveFileExists,
+    #[error("Cannot create save directory.")]
+    DirError,
     #[error("Cannot read user input.")]
     ReadError,
     #[error("Could not verify.")]

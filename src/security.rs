@@ -1,16 +1,8 @@
-use crate::database::manager::get_sqlite_connection;
-use crate::database::objects::ConfigParams;
+use crate::database::objects::{ConfigItem, ConfigParams};
+use crate::database::queries::DatabaseInterface;
 use crate::{consts::HASH_COST, errors::Error};
 use bcrypt::hash;
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
-use sqlx::Executor;
-
-#[derive(sqlx::FromRow)]
-#[allow(dead_code)]
-struct ConfigItem {
-    pub name: String,
-    pub value: String,
-}
 
 pub fn encrypt(plaintext: &str, key: &str) -> String {
     let mc = new_magic_crypt!(key, 256);
@@ -25,15 +17,14 @@ pub fn decrypt(ciphertext: &str, key: &str) -> Result<String, Error> {
         .map_err(|err| Error::BadDecryption(err))
 }
 
-pub async fn save_new_key(key: String) {
-    let hashed_key = hash(&key, HASH_COST).unwrap();
-    let query = sqlx::query("INSERT INTO config (name, value) VALUES (?, ?);")
-        .bind(ConfigParams::AccessCheck)
-        .bind(&hashed_key);
-    let mut database_connection = get_sqlite_connection().await;
+pub async fn save_new_key(key: &str, conn: &mut DatabaseInterface) -> Result<(), Error> {
+    let hashed_key = hash(key, HASH_COST).unwrap();
+    let setting = ConfigItem {
+        name: ConfigParams::AccessCheck,
+        value: hashed_key,
+    };
 
-    database_connection
-        .execute(query)
-        .await
-        .expect("Error saving new key.");
+    conn.set_setting(setting).await?;
+
+    Ok(())
 }

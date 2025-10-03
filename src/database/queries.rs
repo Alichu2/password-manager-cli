@@ -6,17 +6,17 @@ use crate::{
     password_operator::Password,
 };
 
-use super::manager::get_sqlite_connection;
+use super::utils::get_sqlite_connection;
 
 pub struct DatabaseInterface {
     connection: SqliteConnection,
 }
 
 impl DatabaseInterface {
-    pub async fn new() -> Self {
-        let connection = get_sqlite_connection().await;
+    pub async fn new() -> Result<Self, Error> {
+        let connection = get_sqlite_connection().await?;
 
-        Self { connection }
+        Ok(Self { connection })
     }
 
     pub fn from(connection: SqliteConnection) -> Self {
