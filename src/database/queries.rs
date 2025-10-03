@@ -32,7 +32,7 @@ impl DatabaseInterface {
     }
 
     pub async fn set_setting(&mut self, setting: ConfigItem) -> Result<(), Error> {
-        sqlx::query("INSERT IF NOT EXISTS INTO config (name, value) VALUES (?, ?);")
+        sqlx::query("INSERT OR IGNORE INTO config (name, value) VALUES (?, ?);")
             .bind(setting.name)
             .bind(setting.value)
             .execute(&mut self.connection)
