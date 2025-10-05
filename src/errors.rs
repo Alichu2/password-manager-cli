@@ -3,6 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Bad directory.")]
+    BadDir,
     #[error("No input.")]
     EmptyInput,
     #[error("Found unexpected table `{0}`.")]

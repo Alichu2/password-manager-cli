@@ -141,20 +141,3 @@ impl Password {
         format!("{},{},{}\n", self.place, self.username, self.password)
     }
 }
-
-pub async fn get_all_decrypted_passwords(
-    key: &str,
-    conn: &mut DatabaseInterface,
-) -> Result<Vec<Password>, Error> {
-    let mut all_passwords = conn.get_all_passwords().await?;
-
-    for password in all_passwords.iter_mut() {
-        if password.is_encrypted() {
-            password
-                .decrypt_password(key)
-                .expect("Error decrypting one of the passwords.");
-        }
-    }
-
-    Ok(all_passwords)
-}

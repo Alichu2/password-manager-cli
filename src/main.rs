@@ -77,7 +77,11 @@ enum Commands {
         all: bool,
     },
     /// Back the passwords up.
-    Backup,
+    Backup {
+        /// Do not encrypt the passwords in the backup file.
+        #[arg(long)]
+        no_encrypt: bool,
+    },
     /// List all the saved places in the database.
     List,
     // /// Restore passwords from a backup.
@@ -125,7 +129,7 @@ async fn main() {
             no_encrypt,
         } => commands::add_password(place, username, no_encrypt).await,
         Commands::Delete { place } => commands::delete(place).await,
-        Commands::Backup => commands::backup().await,
+        Commands::Backup { no_encrypt } => commands::backup(no_encrypt).await,
         Commands::List => commands::list().await,
         Commands::Edit { place, no_encrypt } => commands::edit(place, no_encrypt).await,
         // Commands::Restore { file } => restore_backup(file),
@@ -140,25 +144,31 @@ mod commands {
         backups::create_backup,
         database::utils::{create_new_save_file, get_validated_conn},
         errors::Error,
-        password_operator::{
-            get_all_decrypted_passwords, Password, PasswordBuildOptions, PasswordBuilder,
-        },
+        password_operator::{Password, PasswordBuildOptions, PasswordBuilder},
         user_functions::ask_valid_key,
     };
     use rpassword::prompt_password;
     use std::env;
 
-    use crate::display_passwords;
-
     use super::ask_question;
 
-    pub async fn backup() -> Result<(), Error> {
+    pub async fn backup(no_encrypt: bool) -> Result<(), Error> {
         let mut conn = get_validated_conn().await?;
 
-        let key = ask_valid_key(&mut conn).await.expect("Error getting key.");
-        let current_dir = env::current_dir().unwrap();
+        let key = ask_valid_key(&mut conn).await?;
+        let current_dir = env::current_dir().map_err(|_| Error::BadDir)?;
+        let mut passwords = conn.get_all_passwords().await?;
 
-        create_backup(&current_dir, &key, &mut conn).await?;
+        for password in passwords.iter_mut() {
+            if no_encrypt && password.is_encrypted() {
+                password.decrypt_password(&key)?;
+            }
+            if !no_encrypt && !password.is_encrypted() {
+                password.encrypt_password(&key);
+            }
+        }
+
+        create_backup(&current_dir, &passwords)?;
 
         Ok(())
     }
@@ -306,9 +316,15 @@ mod commands {
 
         if all {
             let valid_key = ask_valid_key(&mut conn).await?;
-            let all_passwords = get_all_decrypted_passwords(&valid_key, &mut conn).await?;
+            let all_passwords = conn.get_all_passwords().await?;
 
-            println!("{}", display_passwords(&all_passwords));
+            for (index, mut password) in all_passwords.into_iter().enumerate() {
+                if password.is_encrypted() {
+                    password.decrypt_password(&valid_key)?;
+                }
+
+                println!("{}:\n{}", index, password)
+            }
         } else {
             let mut loaded_password = Password::from(place.unwrap(), &mut conn).await?;
 
@@ -362,16 +378,6 @@ pub fn ask_question(question: &str) -> Result<Option<String>, Error> {
     } else {
         Ok(Some(trimmed_answer))
     }
-}
-
-pub fn display_passwords(passwords: &Vec<Password>) -> String {
-    let mut result = String::new();
-
-    for (index, password) in passwords.iter().enumerate() {
-        result.push_str(&format!("\n{}:\n{}\n", index, password))
-    }
-
-    result
 }
 
 pub fn pretty_error(result: Result<(), Error>) {
