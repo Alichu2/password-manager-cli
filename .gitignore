@@ -8,6 +8,7 @@
 
 # Ignore IDE files
 .idea/
+.DS_store
 
 # Files created by the code when debugging
 .password-manager/
