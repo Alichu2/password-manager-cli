@@ -296,9 +296,9 @@ pub async fn delete(place: String) -> Result<(), Error> {
 
     if confirmation {
         conn.delete_password(&password.place).await?;
+    } else {
+        println!("{}", OPERATION_CANCELLED);
     }
-
-    println!("{}", OPERATION_CANCELLED);
 
     Ok(())
 }
