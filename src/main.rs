@@ -140,11 +140,10 @@ async fn main() {
 
 mod commands {
     use password_manager::{
-        backups::create_backup,
         database::utils::{create_new_save_file, get_validated_conn},
         errors::Error,
-        password_operator::{Password, PasswordBuildOptions, PasswordBuilder},
-        user_functions::ask_valid_key,
+        password::{Password, PasswordBuildOptions, PasswordBuilder},
+        utils::{ask_valid_key, create_backup},
     };
     use rpassword::prompt_password;
     use std::{env, fs, io::Read};

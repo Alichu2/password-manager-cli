@@ -4,7 +4,7 @@ use std::fmt;
 use crate::consts::{LOWERCASE_CHARACTERS, NUMBERS, SPECIAL_CHARACTERS};
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
-use crate::security::{decrypt, encrypt};
+use crate::utils::{decrypt, encrypt};
 
 #[derive(sqlx::FromRow, Clone)]
 pub struct Password {

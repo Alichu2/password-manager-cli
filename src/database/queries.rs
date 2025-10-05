@@ -3,7 +3,7 @@ use sqlx::{self, SqliteConnection};
 use crate::{
     database::objects::{ConfigItem, ConfigParams},
     errors::Error,
-    password_operator::Password,
+    password::Password,
 };
 
 use super::utils::get_sqlite_connection;

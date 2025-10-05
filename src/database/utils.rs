@@ -1,7 +1,7 @@
 use crate::database::objects::ConfigParams;
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
-use crate::security::save_new_key;
+use crate::utils::save_new_key;
 use sqlx::{Connection, SqliteConnection};
 use std::fs;
 use std::path::PathBuf;
