@@ -140,18 +140,6 @@ impl Password {
     pub fn to_csv_row(&self) -> String {
         format!("{},{},{}\n", self.place, self.username, self.password)
     }
-
-    pub async fn delete(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
-        conn.delete_password(&self.place).await
-    }
-
-    pub async fn save(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
-        conn.insert_password(self).await
-    }
-
-    pub async fn update(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
-        conn.update_password(self).await
-    }
 }
 
 pub async fn get_all_decrypted_passwords(

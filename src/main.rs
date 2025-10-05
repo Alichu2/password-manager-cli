@@ -214,7 +214,7 @@ mod commands {
                 password.encrypt_password(&key);
             }
 
-            password.update(&mut conn).await?;
+            conn.update_password(&password).await?;
         } else {
             let mut new_password = Password::new(new_username, new_place.unwrap(), new_password);
 
@@ -222,8 +222,8 @@ mod commands {
                 new_password.encrypt_password(&key);
             }
 
-            new_password.save(&mut conn).await?;
-            password.delete(&mut conn).await?;
+            conn.insert_password(&new_password).await?;
+            conn.delete_password(&password.place).await?;
         }
 
         Ok(())
@@ -267,7 +267,7 @@ mod commands {
                 println!("Generated Password:\n{}", new_password);
             }
 
-            new_password.save(&mut conn).await?;
+            conn.insert_password(&new_password).await?;
         }
         Ok(())
     }
@@ -296,7 +296,7 @@ mod commands {
             println!("Saved password:\n{}", new_password);
         }
 
-        new_password.save(&mut conn).await?;
+        conn.insert_password(&new_password).await?;
 
         Ok(())
     }
@@ -332,7 +332,7 @@ mod commands {
         let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ")?;
 
         match confirmation.as_deref() {
-            Some("y") => password.delete(&mut conn).await?,
+            Some("y") => conn.delete_password(&password.place).await?,
             Some("n") => {
                 println!("Operation cancelled.");
             }
