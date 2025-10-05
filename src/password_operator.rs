@@ -81,11 +81,19 @@ impl Into<Password> for PasswordBuilder {
 
 impl fmt::Display for Password {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "\tpalce = {}\n\tusername = {}\n\tpassword = {}",
-            self.place, self.username, self.password
-        )
+        if self.is_encrypted() {
+            write!(
+                f,
+                "\tpalce = {}\n\tusername = {}",
+                self.place, self.username
+            )
+        } else {
+            write!(
+                f,
+                "\tpalce = {}\n\tusername = {}\n\tpassword = {}",
+                self.place, self.username, self.password
+            )
+        }
     }
 }
 

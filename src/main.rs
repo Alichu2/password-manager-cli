@@ -225,7 +225,7 @@ mod commands {
         username: String,
         no_encrypt: bool,
     ) -> Result<(), Error> {
-        let password = ask_question("Enter password you desire to save:\n")?;
+        let password = ask_question("Enter password you desire to save:")?;
         let mut new_password = Password::new(username, place, password);
         let mut conn = get_validated_conn().await?;
 
@@ -271,7 +271,7 @@ mod commands {
         let mut conn = get_validated_conn().await?;
         let password = Password::from(place, &mut conn).await?;
 
-        println!("Selected password to delete:\n{}", &password);
+        println!("Selected password:\n{}", &password);
         let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ")?;
 
         match confirmation.as_str() {
@@ -291,7 +291,7 @@ mod commands {
 pub fn ask_question(question: &str) -> Result<String, Error> {
     let mut answer = String::new();
 
-    print!("{}", question);
+    println!("\n{}", question);
     stdin()
         .read_line(&mut answer)
         .map_err(|_| Error::ReadError)?;
