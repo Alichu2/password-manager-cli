@@ -138,7 +138,7 @@ impl Password {
     }
 
     pub async fn save(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
-        conn.delete_password(&self.place).await
+        conn.insert_password(self).await
     }
 }
 
