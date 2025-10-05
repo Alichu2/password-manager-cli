@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use password_manager::{errors::Error, password_operator::Password};
+use password_manager::errors::Error;
 
 use std::io::stdin;
 
@@ -78,6 +78,8 @@ enum Commands {
     },
     /// Back the passwords into a CSV file. The passwords are all decrypted.
     Backup,
+    /// Similar to backup, but it just dumps the database contents into a CSV without encrypting or decrypting. Useful for automatic periodic backups.
+    DumpDatabase,
     /// List all the saved places in the database.
     List,
     // /// Restore passwords from a backup.
@@ -127,6 +129,7 @@ async fn main() {
         Commands::Delete { place } => commands::delete(place).await,
         Commands::Backup => commands::backup().await,
         Commands::List => commands::list().await,
+        Commands::DumpDatabase => commands::dump_db().await,
         Commands::Edit { place, no_encrypt } => commands::edit(place, no_encrypt).await,
         // Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => commands::create_database().await,
@@ -162,6 +165,22 @@ mod commands {
         }
 
         create_backup(&current_dir, &passwords)?;
+
+        Ok(())
+    }
+
+    pub async fn dump_db() -> Result<(), Error> {
+        let mut conn = get_validated_conn().await?;
+        let passwords = conn.get_all_passwords().await?;
+
+        println!("place,username,password,encyrpted");
+
+        for password in passwords {
+            println!(
+                "{},{},{},{}",
+                &password.place, &password.username, &password.password, password.encrypted
+            )
+        }
 
         Ok(())
     }
