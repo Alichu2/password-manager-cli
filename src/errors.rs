@@ -3,6 +3,16 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Error parsing number.")]
+    ParsingError,
+    #[error("Could not find the field {0} (line {1}).")]
+    MissingField(&'static str, usize),
+    #[error("Could not find the header {0}.")]
+    NoHeader(String),
+    #[error("Invalid headers. There needs to be at least 4 columns.")]
+    BadHeaders,
+    #[error("Error processing database dump.")]
+    BadDump,
     #[error("Bad directory.")]
     BadDir,
     #[error("No input.")]

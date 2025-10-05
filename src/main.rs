@@ -82,11 +82,11 @@ enum Commands {
     DumpDatabase,
     /// List all the saved places in the database.
     List,
-    // /// Restore passwords from a backup.
-    // Restore {
-    //     /// Restore file.
-    //     file: String,
-    // },
+    /// Restore passwords from a database dump.
+    LoadDump {
+        /// Database dump file.
+        file: String,
+    },
     /// Initial command to create a database with a key.
     CreateDatabase,
 }
@@ -131,7 +131,7 @@ async fn main() {
         Commands::List => commands::list().await,
         Commands::DumpDatabase => commands::dump_db().await,
         Commands::Edit { place, no_encrypt } => commands::edit(place, no_encrypt).await,
-        // Commands::Restore { file } => restore_backup(file),
+        Commands::LoadDump { file } => commands::load_dump(file).await,
         Commands::CreateDatabase => commands::create_database().await,
     };
 
@@ -147,7 +147,9 @@ mod commands {
         user_functions::ask_valid_key,
     };
     use rpassword::prompt_password;
-    use std::env;
+    use std::{env, fs, io::Read};
+
+    use crate::find_clomun_index;
 
     use super::ask_question;
 
@@ -173,7 +175,7 @@ mod commands {
         let mut conn = get_validated_conn().await?;
         let passwords = conn.get_all_passwords().await?;
 
-        println!("place,username,password,encyrpted");
+        println!("place,username,password,encrypted");
 
         for password in passwords {
             println!(
@@ -181,6 +183,79 @@ mod commands {
                 &password.place, &password.username, &password.password, password.encrypted
             )
         }
+
+        Ok(())
+    }
+
+    pub async fn load_dump(file: String) -> Result<(), Error> {
+        let mut conn = get_validated_conn().await?;
+        let mut contents = String::new();
+        let current_path = env::current_dir().map_err(|_| Error::BadDir)?;
+        let mut file = fs::File::open(current_path.join(file)).map_err(|_| Error::ReadError)?;
+
+        file.read_to_string(&mut contents)
+            .map_err(|_| Error::ReadError)?;
+
+        let mut lines = contents.trim().split("\n");
+        let header = lines.next();
+
+        let header_parts = header.ok_or(Error::BadDump).unwrap().split(",");
+
+        if header_parts.clone().count() < 4 {
+            return Err(Error::BadHeaders);
+        }
+
+        let place_index =
+            find_clomun_index("place", "Enter `place` column name:", header_parts.clone())?;
+        let username_index = find_clomun_index(
+            "username",
+            "Enter `username` column name:",
+            header_parts.clone(),
+        )?;
+        let password_index = find_clomun_index(
+            "password",
+            "Enter `password` column name:",
+            header_parts.clone(),
+        )?;
+        let encrypted_index =
+            find_clomun_index("encrypted", "Enter `encrypted` column name:", header_parts)?;
+
+        let mut passwords = Vec::new();
+
+        for (index, line) in lines.enumerate() {
+            let parts = line.split(",").map(|v| v.to_owned()).collect::<Vec<_>>();
+
+            let place = parts
+                .get(place_index)
+                .ok_or(Error::MissingField("place", index + 2))?
+                .to_owned();
+            let username = parts
+                .get(username_index)
+                .ok_or(Error::MissingField("username", index + 2))?
+                .to_owned();
+            let password = parts
+                .get(password_index)
+                .ok_or(Error::MissingField("password", index + 2))?
+                .to_owned();
+            let encrypted = parts
+                .get(encrypted_index)
+                .ok_or(Error::MissingField("encrypted", index + 2))?;
+
+            let new_password = Password {
+                place,
+                username,
+                password,
+                encrypted: encrypted.parse::<i32>().map_err(|_| Error::ParsingError)?,
+            };
+
+            passwords.push(new_password);
+        }
+
+        for password in passwords.iter() {
+            conn.insert_password(password).await?;
+        }
+
+        println!("Loaded {} passwords.", passwords.len());
 
         Ok(())
     }
@@ -397,4 +472,31 @@ pub fn pretty_error(result: Result<(), Error>) {
         Ok(_) => (),
         Err(err) => println!("Error: {err}"),
     }
+}
+
+pub fn find_clomun_index<'a, T: Iterator<Item = &'a str> + Clone>(
+    default_value: &str,
+    question: &str,
+    mut headers: T,
+) -> Result<usize, Error> {
+    let default_index = headers.clone().position(|p| p == default_value);
+
+    if default_index.is_none() {
+        let user_defined_header = ask_question(question)?;
+
+        if user_defined_header.is_none() {
+            return Err(Error::EmptyInput);
+        }
+
+        let unwrapped = user_defined_header.unwrap();
+        let user_defined_index = headers.position(|p| p == &unwrapped);
+
+        if user_defined_index.is_none() {
+            return Err(Error::NoHeader(unwrapped));
+        }
+
+        return Ok(user_defined_index.unwrap());
+    }
+
+    Ok(default_index.unwrap())
 }
