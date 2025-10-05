@@ -76,12 +76,8 @@ enum Commands {
         #[arg(long)]
         all: bool,
     },
-    /// Back the passwords up.
-    Backup {
-        /// Do not encrypt the passwords in the backup file.
-        #[arg(long)]
-        no_encrypt: bool,
-    },
+    /// Back the passwords into a CSV file. The passwords are all decrypted.
+    Backup,
     /// List all the saved places in the database.
     List,
     // /// Restore passwords from a backup.
@@ -129,7 +125,7 @@ async fn main() {
             no_encrypt,
         } => commands::add_password(place, username, no_encrypt).await,
         Commands::Delete { place } => commands::delete(place).await,
-        Commands::Backup { no_encrypt } => commands::backup(no_encrypt).await,
+        Commands::Backup => commands::backup().await,
         Commands::List => commands::list().await,
         Commands::Edit { place, no_encrypt } => commands::edit(place, no_encrypt).await,
         // Commands::Restore { file } => restore_backup(file),
@@ -152,7 +148,7 @@ mod commands {
 
     use super::ask_question;
 
-    pub async fn backup(no_encrypt: bool) -> Result<(), Error> {
+    pub async fn backup() -> Result<(), Error> {
         let mut conn = get_validated_conn().await?;
 
         let key = ask_valid_key(&mut conn).await?;
@@ -160,11 +156,8 @@ mod commands {
         let mut passwords = conn.get_all_passwords().await?;
 
         for password in passwords.iter_mut() {
-            if no_encrypt && password.is_encrypted() {
+            if password.is_encrypted() {
                 password.decrypt_password(&key)?;
-            }
-            if !no_encrypt && !password.is_encrypted() {
-                password.encrypt_password(&key);
             }
         }
 
