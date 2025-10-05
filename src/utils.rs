@@ -1,10 +1,10 @@
 use crate::consts::communications::{CONFIRM_KEY, ENTER_KEY, ERROR_CONFIRMING_KEY, WRONG_KEY};
-use crate::consts::{BACKUP_FILE_NAME, HASH_COST};
+use crate::consts::BACKUP_FILE_NAME;
 use crate::database::objects::{ConfigItem, ConfigParams};
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
 use crate::password::Password;
-use bcrypt::{hash, verify};
+use bcrypt::verify;
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 use rpassword::prompt_password;
 use std::fs;
@@ -62,18 +62,6 @@ pub fn decrypt(ciphertext: &str, key: &str) -> Result<String, Error> {
 
     mc.decrypt_base64_to_string(ciphertext)
         .map_err(|err| Error::BadDecryption(err))
-}
-
-pub async fn save_new_key(key: &str, conn: &mut DatabaseInterface) -> Result<(), Error> {
-    let hashed_key = hash(key, HASH_COST).map_err(|err| Error::HashError(err))?;
-    let setting = ConfigItem {
-        name: ConfigParams::AccessCheck,
-        value: hashed_key,
-    };
-
-    conn.set_setting(setting).await?;
-
-    Ok(())
 }
 
 pub fn create_backup(location: &PathBuf, passwords: &Vec<Password>) -> Result<(), Error> {

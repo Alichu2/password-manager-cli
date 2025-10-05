@@ -1,7 +1,8 @@
-use crate::database::objects::ConfigParams;
+use crate::consts::HASH_COST;
+use crate::database::objects::{ConfigItem, ConfigParams};
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
-use crate::utils::save_new_key;
+use bcrypt::hash;
 use sqlx::{Connection, SqliteConnection};
 use std::fs;
 use std::path::PathBuf;
@@ -49,6 +50,18 @@ pub async fn create_new_save_file(new_key: &str) -> Result<(), Error> {
     } else {
         Err(Error::SaveFileExists)
     }
+}
+
+pub async fn save_new_key(key: &str, conn: &mut DatabaseInterface) -> Result<(), Error> {
+    let hashed_key = hash(key, HASH_COST).map_err(|err| Error::HashError(err))?;
+    let setting = ConfigItem {
+        name: ConfigParams::AccessCheck,
+        value: hashed_key,
+    };
+
+    conn.set_setting(setting).await?;
+
+    Ok(())
 }
 
 pub async fn create_save_file() -> Result<(), Error> {
