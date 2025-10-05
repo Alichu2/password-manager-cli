@@ -148,6 +148,10 @@ impl Password {
     pub async fn save(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
         conn.insert_password(self).await
     }
+
+    pub async fn update(&self, conn: &mut DatabaseInterface) -> Result<(), Error> {
+        conn.update_password(self).await
+    }
 }
 
 pub async fn get_all_decrypted_passwords(

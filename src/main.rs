@@ -54,6 +54,14 @@ enum Commands {
         #[arg(short, long)]
         no_encrypt: bool,
     },
+    /// Edit an already existing password.
+    Edit {
+        /// Password's place.
+        place: String,
+        /// Set whether the updated password should be encrypted or not.
+        #[arg(long)]
+        no_encrypt: bool,
+    },
     /// Delete a password from the database.
     Delete {
         /// Password's place.
@@ -119,6 +127,7 @@ async fn main() {
         Commands::Delete { place } => commands::delete(place).await,
         Commands::Backup => commands::backup().await,
         Commands::List => commands::list().await,
+        Commands::Edit { place, no_encrypt } => commands::edit(place, no_encrypt).await,
         // Commands::Restore { file } => restore_backup(file),
         Commands::CreateDatabase => commands::create_database().await,
     };
@@ -177,6 +186,49 @@ mod commands {
         Ok(())
     }
 
+    pub async fn edit(place: String, no_encrypt: bool) -> Result<(), Error> {
+        let mut conn = get_validated_conn().await?;
+        let key = ask_valid_key(&mut conn).await?;
+        let mut password = Password::from(place, &mut conn).await?;
+
+        if password.is_encrypted() {
+            password.decrypt_password(&key)?;
+        }
+
+        println!("Selected password:\n{}", &password);
+
+        let new_place = ask_question("New place (leave empty to keep current):")?;
+        let new_username = ask_question("New username (leave empty to keep current):")?
+            .unwrap_or(password.username.clone());
+        let new_password = ask_question("New password (leave empty to keep current):")?
+            .unwrap_or(password.password.clone());
+
+        if new_place.is_none() {
+            password.username = new_username;
+            password.password = new_password;
+
+            if no_encrypt && password.is_encrypted() {
+                password.decrypt_password(&key)?;
+            }
+            if !no_encrypt && !password.is_encrypted() {
+                password.encrypt_password(&key);
+            }
+
+            password.update(&mut conn).await?;
+        } else {
+            let mut new_password = Password::new(new_username, new_place.unwrap(), new_password);
+
+            if !no_encrypt {
+                new_password.encrypt_password(&key);
+            }
+
+            new_password.save(&mut conn).await?;
+            password.delete(&mut conn).await?;
+        }
+
+        Ok(())
+    }
+
     pub async fn generate(
         save: bool,
         length: usize,
@@ -226,7 +278,12 @@ mod commands {
         no_encrypt: bool,
     ) -> Result<(), Error> {
         let password = ask_question("Enter password you desire to save:")?;
-        let mut new_password = Password::new(username, place, password);
+
+        if password.is_none() {
+            return Err(Error::EmptyInput);
+        }
+
+        let mut new_password = Password::new(username, place, password.unwrap());
         let mut conn = get_validated_conn().await?;
 
         if !no_encrypt {
@@ -274,13 +331,16 @@ mod commands {
         println!("Selected password:\n{}", &password);
         let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ")?;
 
-        match confirmation.as_str() {
-            "y" => password.delete(&mut conn).await?,
-            "n" => {
+        match confirmation.as_deref() {
+            Some("y") => password.delete(&mut conn).await?,
+            Some("n") => {
                 println!("Operation cancelled.");
             }
-            other => {
+            Some(other) => {
                 println!("Did not recognize {}. Aborting", other);
+            }
+            None => {
+                println!("Operation cancelled")
             }
         };
 
@@ -288,15 +348,20 @@ mod commands {
     }
 }
 
-pub fn ask_question(question: &str) -> Result<String, Error> {
+pub fn ask_question(question: &str) -> Result<Option<String>, Error> {
     let mut answer = String::new();
 
     println!("\n{}", question);
     stdin()
         .read_line(&mut answer)
         .map_err(|_| Error::ReadError)?;
+    let trimmed_answer = answer.trim().to_string();
 
-    Ok(answer.trim().to_string())
+    if trimmed_answer.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed_answer))
+    }
 }
 
 pub fn display_passwords(passwords: &Vec<Password>) -> String {

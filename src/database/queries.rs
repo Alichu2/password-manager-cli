@@ -119,4 +119,19 @@ impl DatabaseInterface {
 
         Ok(result.len() >= 1)
     }
+
+    pub async fn update_password(&mut self, password: &Password) -> Result<(), Error> {
+        sqlx::query(
+            "UPDATE passwords SET password = ?, username = ?, encrypted = ? WHERE place = ?;",
+        )
+        .bind(&password.password)
+        .bind(&password.username)
+        .bind(password.encrypted)
+        .bind(&password.place)
+        .execute(&mut self.connection)
+        .await
+        .map_err(|err| Error::DatabaseError(err))?;
+
+        Ok(())
+    }
 }
