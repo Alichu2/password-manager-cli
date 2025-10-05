@@ -60,6 +60,8 @@ enum Commands {
         #[arg(long)]
         no_encrypt: bool,
     },
+    /// List all the saved places in the database.
+    Ls,
     /// Delete a password from the database.
     Rm {
         /// Password's place.
@@ -78,8 +80,6 @@ enum Commands {
     Backup,
     /// Similar to backup, but it just dumps the database contents into a CSV without encrypting or decrypting. Useful for automatic periodic backups.
     DumpDatabase,
-    /// List all the saved places in the database.
-    Ls,
     /// Restore passwords from a database dump.
     LoadDump {
         /// Database dump file.
