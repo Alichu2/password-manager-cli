@@ -4,6 +4,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Unrecognised input `{0}`.")]
+    BadInput(String),
     #[error("Error hashing: {0}")]
     HashError(#[from] BcryptError),
     #[error("Could not find a home directory.")]

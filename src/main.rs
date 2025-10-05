@@ -1,5 +1,8 @@
 use clap::{Parser, Subcommand};
-use password_manager::errors::Error;
+use password_manager::{
+    consts::communications::{PASSWORD_DELETE_CONFIRMATION, YES_NO},
+    errors::Error,
+};
 
 use std::io::stdin;
 
@@ -156,7 +159,7 @@ mod commands {
     use rpassword::prompt_password;
     use std::{env, fs, io::Read};
 
-    use crate::find_clomun_index;
+    use crate::{ask_bool, find_clomun_index};
 
     use super::ask_question;
 
@@ -443,20 +446,13 @@ mod commands {
         let password = Password::from(place, &mut conn).await?;
 
         println!("{}\n{}", SELECTED_PASSWORD, &password);
-        let confirmation = ask_question(&format!("{} {}: ", PASSWORD_DELETE_CONFIRMATION, YES_NO))?;
+        let confirmation = ask_bool(PASSWORD_DELETE_CONFIRMATION)?;
 
-        match confirmation.as_deref() {
-            Some("y") => conn.delete_password(&password.place).await?,
-            Some("n") => {
-                println!("{}", OPERATION_CANCELLED);
-            }
-            Some(other) => {
-                println!("Did not recognize {}. Aborting", other);
-            }
-            None => {
-                println!("{}", OPERATION_CANCELLED)
-            }
-        };
+        if confirmation {
+            conn.delete_password(&password.place).await?;
+        }
+
+        println!("{}", OPERATION_CANCELLED);
 
         Ok(())
     }
@@ -510,4 +506,15 @@ pub fn find_clomun_index<'a, T: Iterator<Item = &'a str> + Clone>(
     }
 
     Ok(default_index.unwrap())
+}
+
+pub fn ask_bool(question: &str) -> Result<bool, Error> {
+    let confirmation = ask_question(&format!("{} {}: ", question, YES_NO))?;
+
+    match confirmation.as_deref() {
+        Some("y") => Ok(true),
+        Some("n") => Ok(false),
+        Some(other) => Err(Error::BadInput(other.to_string())),
+        None => Err(Error::EmptyInput),
+    }
 }
