@@ -71,7 +71,13 @@ pub async fn create_save_file() -> Result<(), Error> {
 pub async fn has_correct_tables(conn: &mut DatabaseInterface) -> Result<bool, Error> {
     let tables = conn.list_tables().await?;
 
-    Ok(tables.contains(&String::from("passwords")) && tables.contains(&String::from("config")))
+    for table in tables {
+        if !(&table == "passwords" || &table == "config") {
+            return Err(Error::UnexpectedTable(table));
+        }
+    }
+
+    Ok(true)
 }
 
 pub async fn has_key(conn: &mut DatabaseInterface) -> Result<bool, Error> {

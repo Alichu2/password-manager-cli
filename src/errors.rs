@@ -3,6 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Found unexpected table `{0}`.")]
+    UnexpectedTable(String),
     #[error("Could not find a valid database. Perhaps you forgot to generate it?")]
     MissingDatabase,
     #[error("Save file and key already exists. Cannot regenerate.")]
