@@ -18,7 +18,7 @@ pub fn decrypt(ciphertext: &str, key: &str) -> Result<String, Error> {
 }
 
 pub async fn save_new_key(key: &str, conn: &mut DatabaseInterface) -> Result<(), Error> {
-    let hashed_key = hash(key, HASH_COST).unwrap();
+    let hashed_key = hash(key, HASH_COST).map_err(|err| Error::HashError(err))?;
     let setting = ConfigItem {
         name: ConfigParams::AccessCheck,
         value: hashed_key,

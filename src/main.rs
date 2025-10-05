@@ -199,7 +199,7 @@ mod commands {
         let mut lines = contents.trim().split("\n");
         let header = lines.next();
 
-        let header_parts = header.ok_or(Error::BadDump).unwrap().split(",");
+        let header_parts = header.ok_or(Error::BadDump)?.split(",");
 
         if header_parts.clone().count() < 4 {
             return Err(Error::BadHeaders);

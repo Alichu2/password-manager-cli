@@ -1,8 +1,11 @@
+use bcrypt::BcryptError;
 use magic_crypt::MagicCryptError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Error hashing: {0}")]
+    HashError(#[from] BcryptError),
     #[error("Could not find a home directory.")]
     NoHomeDir,
     #[error("Error parsing number.")]
