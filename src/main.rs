@@ -140,6 +140,14 @@ async fn main() {
 
 mod commands {
     use password_manager::{
+        consts::{
+            communications::{
+                ENTER_PASSWORD, GENERATED_PASSWORD, INIT_KEY, NEW_PASSWORD, NEW_PLACE,
+                NEW_USERNAME, OPERATION_CANCELLED, PASSWORD_DELETE_CONFIRMATION, SAVED_PASSWORD,
+                SELECTED_PASSWORD, YES_NO,
+            },
+            CSV_ENCRYPTED, CSV_PASSWORD, CSV_PLACE, CSV_USERNAME,
+        },
         database::utils::{create_new_save_file, get_validated_conn},
         errors::Error,
         password::{Password, PasswordBuildOptions, PasswordBuilder},
@@ -174,13 +182,13 @@ mod commands {
         let mut conn = get_validated_conn().await?;
         let passwords = conn.get_all_passwords().await?;
 
-        println!("place,username,password,encrypted");
+        println!(
+            "{},{},{},{}",
+            CSV_PLACE, CSV_USERNAME, CSV_PASSWORD, CSV_ENCRYPTED
+        );
 
         for password in passwords {
-            println!(
-                "{},{},{},{}",
-                &password.place, &password.username, &password.password, password.encrypted
-            )
+            println!("{}", password.dump())
         }
 
         Ok(())
@@ -204,20 +212,26 @@ mod commands {
             return Err(Error::BadHeaders);
         }
 
-        let place_index =
-            find_clomun_index("place", "Enter `place` column name:", header_parts.clone())?;
+        let place_index = find_clomun_index(
+            CSV_PLACE,
+            "Enter `place` column name:",
+            header_parts.clone(),
+        )?;
         let username_index = find_clomun_index(
-            "username",
+            CSV_USERNAME,
             "Enter `username` column name:",
             header_parts.clone(),
         )?;
         let password_index = find_clomun_index(
-            "password",
+            CSV_PASSWORD,
             "Enter `password` column name:",
             header_parts.clone(),
         )?;
-        let encrypted_index =
-            find_clomun_index("encrypted", "Enter `encrypted` column name:", header_parts)?;
+        let encrypted_index = find_clomun_index(
+            CSV_ENCRYPTED,
+            "Enter `encrypted` column name:",
+            header_parts,
+        )?;
 
         let mut passwords = Vec::new();
 
@@ -226,19 +240,19 @@ mod commands {
 
             let place = parts
                 .get(place_index)
-                .ok_or(Error::MissingField("place", index + 2))?
+                .ok_or(Error::MissingField(CSV_PLACE, index + 2))?
                 .to_owned();
             let username = parts
                 .get(username_index)
-                .ok_or(Error::MissingField("username", index + 2))?
+                .ok_or(Error::MissingField(CSV_ENCRYPTED, index + 2))?
                 .to_owned();
             let password = parts
                 .get(password_index)
-                .ok_or(Error::MissingField("password", index + 2))?
+                .ok_or(Error::MissingField(CSV_PASSWORD, index + 2))?
                 .to_owned();
             let encrypted = parts
                 .get(encrypted_index)
-                .ok_or(Error::MissingField("encrypted", index + 2))?;
+                .ok_or(Error::MissingField(CSV_ENCRYPTED, index + 2))?;
 
             let new_password = Password {
                 place,
@@ -260,7 +274,7 @@ mod commands {
     }
 
     pub async fn create_database() -> Result<(), Error> {
-        let key = prompt_password("Enter a key used to encrypt passwords (if you forget this key, the passwords are lost): ").map_err(|_| Error::ReadError)?;
+        let key = prompt_password(INIT_KEY).map_err(|_| Error::ReadError)?;
 
         create_new_save_file(&key).await?;
 
@@ -291,13 +305,11 @@ mod commands {
             password.decrypt_password(&key)?;
         }
 
-        println!("Selected password:\n{}", &password);
+        println!("{}\n{}", SELECTED_PASSWORD, &password);
 
-        let new_place = ask_question("New place (leave empty to keep current):")?;
-        let new_username = ask_question("New username (leave empty to keep current):")?
-            .unwrap_or(password.username.clone());
-        let new_password = ask_question("New password (leave empty to keep current):")?
-            .unwrap_or(password.password.clone());
+        let new_place = ask_question(NEW_PLACE)?;
+        let new_username = ask_question(NEW_USERNAME)?.unwrap_or(password.username.clone());
+        let new_password = ask_question(NEW_PASSWORD)?.unwrap_or(password.password.clone());
 
         if new_place.is_none() {
             password.username = new_username;
@@ -346,7 +358,7 @@ mod commands {
 
         if !save {
             let new_password = PasswordBuilder::generate_password(options);
-            println!("Generated password: {}", new_password);
+            println!("{} {}", GENERATED_PASSWORD, new_password);
         } else {
             let password_builder =
                 PasswordBuilder::from(username.unwrap(), place.unwrap(), options);
@@ -356,11 +368,11 @@ mod commands {
             if !no_encrypt {
                 let key = ask_valid_key(&mut conn).await?;
 
-                println!("Generated Password:\n{}", new_password);
+                println!("{}\n{}", GENERATED_PASSWORD, new_password);
 
                 new_password.encrypt_password(&key);
             } else {
-                println!("Generated Password:\n{}", new_password);
+                println!("{}\n{}", GENERATED_PASSWORD, new_password);
             }
 
             conn.insert_password(&new_password).await?;
@@ -373,7 +385,7 @@ mod commands {
         username: String,
         no_encrypt: bool,
     ) -> Result<(), Error> {
-        let password = ask_question("Enter password you desire to save:")?;
+        let password = ask_question(ENTER_PASSWORD)?;
 
         if password.is_none() {
             return Err(Error::EmptyInput);
@@ -385,11 +397,11 @@ mod commands {
         if !no_encrypt {
             let key = ask_valid_key(&mut conn).await?;
 
-            println!("Saved password:\n{}", new_password);
+            println!("{}\n{}", SAVED_PASSWORD, new_password);
 
             new_password.encrypt_password(&key);
         } else {
-            println!("Saved password:\n{}", new_password);
+            println!("{}\n{}", SAVED_PASSWORD, new_password);
         }
 
         conn.insert_password(&new_password).await?;
@@ -430,19 +442,19 @@ mod commands {
         let mut conn = get_validated_conn().await?;
         let password = Password::from(place, &mut conn).await?;
 
-        println!("Selected password:\n{}", &password);
-        let confirmation = ask_question("Are you sure you want to delete this password? [y/n]: ")?;
+        println!("{}\n{}", SELECTED_PASSWORD, &password);
+        let confirmation = ask_question(&format!("{} {}: ", PASSWORD_DELETE_CONFIRMATION, YES_NO))?;
 
         match confirmation.as_deref() {
             Some("y") => conn.delete_password(&password.place).await?,
             Some("n") => {
-                println!("Operation cancelled.");
+                println!("{}", OPERATION_CANCELLED);
             }
             Some(other) => {
                 println!("Did not recognize {}. Aborting", other);
             }
             None => {
-                println!("Operation cancelled")
+                println!("{}", OPERATION_CANCELLED)
             }
         };
 

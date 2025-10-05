@@ -1,5 +1,5 @@
 use crate::consts::communications::{CONFIRM_KEY, ENTER_KEY, ERROR_CONFIRMING_KEY, WRONG_KEY};
-use crate::consts::BACKUP_FILE_NAME;
+use crate::consts::{BACKUP_FILE_NAME, CSV_PASSWORD, CSV_PLACE, CSV_USERNAME};
 use crate::database::objects::{ConfigItem, ConfigParams};
 use crate::database::queries::DatabaseInterface;
 use crate::errors::Error;
@@ -65,16 +65,15 @@ pub fn decrypt(ciphertext: &str, key: &str) -> Result<String, Error> {
 }
 
 pub fn create_backup(location: &PathBuf, passwords: &Vec<Password>) -> Result<(), Error> {
-    let mut result_string = String::from("place,username,password\n");
+    let mut result_string = format!("{},{},{}\n", CSV_PLACE, CSV_USERNAME, CSV_PASSWORD);
 
     for password in passwords {
         result_string.push_str(&password.to_csv_row());
     }
 
-    let mut file =
-        fs::File::create(location.join(BACKUP_FILE_NAME)).expect("Error creating backup file.");
+    let mut file = fs::File::create(location.join(BACKUP_FILE_NAME)).map_err(|_| Error::BadDump)?;
     file.write_all(result_string.as_bytes())
-        .expect("Error writing backup file.");
+        .map_err(|_| Error::BadDump)?;
 
     Ok(())
 }

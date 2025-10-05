@@ -140,4 +140,11 @@ impl Password {
     pub fn to_csv_row(&self) -> String {
         format!("{},{},{}\n", self.place, self.username, self.password)
     }
+
+    pub fn dump(&self) -> String {
+        format!(
+            "{},{},{},{}\n",
+            self.place, self.username, self.password, self.encrypted
+        )
+    }
 }
