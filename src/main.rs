@@ -61,7 +61,7 @@ enum Commands {
         no_encrypt: bool,
     },
     /// Delete a password from the database.
-    Delete {
+    Rm {
         /// Password's place.
         place: String,
     },
@@ -79,7 +79,7 @@ enum Commands {
     /// Similar to backup, but it just dumps the database contents into a CSV without encrypting or decrypting. Useful for automatic periodic backups.
     DumpDatabase,
     /// List all the saved places in the database.
-    List,
+    Ls,
     /// Restore passwords from a database dump.
     LoadDump {
         /// Database dump file.
@@ -124,9 +124,9 @@ async fn main() {
             username,
             no_encrypt,
         } => operations::add_password(place, username, no_encrypt).await,
-        Commands::Delete { place } => operations::delete(place).await,
+        Commands::Rm { place } => operations::delete(place).await,
         Commands::Backup => operations::backup().await,
-        Commands::List => operations::list().await,
+        Commands::Ls => operations::list().await,
         Commands::DumpDatabase => operations::dump_db().await,
         Commands::Edit { place, no_encrypt } => operations::edit(place, no_encrypt).await,
         Commands::LoadDump { file } => operations::load_dump(file).await,
