@@ -3,6 +3,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Could not find a home directory.")]
+    NoHomeDir,
     #[error("Error parsing number.")]
     ParsingError,
     #[error("Could not find the field {0} (line {1}).")]

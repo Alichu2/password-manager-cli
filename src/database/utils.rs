@@ -12,38 +12,32 @@ use dirs::home_dir;
 use std::process::exit;
 
 #[cfg(not(debug_assertions))]
-fn get_home_path() -> PathBuf {
-    match home_dir() {
-        None => {
-            println!("Error: Home Directory Path Not Found.");
-            exit(1);
-        }
-        Some(path) => path,
-    }
+fn get_home_path() -> Result<PathBuf, Error> {
+    home_dir().ok_or(Error::NoHomeDir)
 }
 
 #[cfg(debug_assertions)]
-fn get_home_path() -> PathBuf {
-    PathBuf::from("./")
+fn get_home_path() -> Result<PathBuf, Error> {
+    Ok(PathBuf::from("./"))
 }
 
-pub fn get_save_dir_path() -> PathBuf {
-    get_home_path().join(".password-manager/")
+pub fn get_save_dir_path() -> Result<PathBuf, Error> {
+    Ok(get_home_path()?.join(".password-manager/"))
 }
 
-fn get_save_file_path() -> PathBuf {
-    get_save_dir_path().join("data.sqlite")
+fn get_save_file_path() -> Result<PathBuf, Error> {
+    Ok(get_save_dir_path()?.join("data.sqlite"))
 }
 
 pub async fn get_sqlite_connection() -> Result<SqliteConnection, Error> {
-    SqliteConnection::connect(&(get_save_file_path().display().to_string() + "?mode=rwc"))
+    SqliteConnection::connect(&(get_save_file_path()?.display().to_string() + "?mode=rwc"))
         .await
         .map_err(|err| Error::DatabaseError(err))
 }
 
 pub async fn create_new_save_file(new_key: &str) -> Result<(), Error> {
-    if !get_save_file_path().exists() {
-        let path = get_save_dir_path().display().to_string();
+    if !get_save_file_path()?.exists() {
+        let path = get_save_dir_path()?.display().to_string();
         fs::create_dir_all(path).map_err(|_| Error::DirError)?;
 
         let mut conn = DatabaseInterface::new().await?;
@@ -85,7 +79,7 @@ pub async fn has_key(conn: &mut DatabaseInterface) -> Result<bool, Error> {
 }
 
 pub async fn get_validated_conn() -> Result<DatabaseInterface, Error> {
-    if get_save_file_path().exists() {
+    if get_save_file_path()?.exists() {
         let mut conn = DatabaseInterface::new().await?;
 
         if has_correct_tables(&mut conn).await? && has_key(&mut conn).await? {
